@@ -241,53 +241,65 @@ function showCombatResult(combat) {
     const attackerDamage = document.getElementById('attacker-damage');
     const defenderDamage = document.getElementById('defender-damage');
 
-    // Clear any rolling intervals
-    if (combatState) {
-        if (combatState.attackerInterval) clearInterval(combatState.attackerInterval);
-        if (combatState.defenderInterval) clearInterval(combatState.defenderInterval);
+    // Make sure defender's dice is rolling (in case result came too fast)
+    if (combatState && !combatState.defenderInterval) {
+        defenderDice.classList.add('rolling');
+        defenderResult.textContent = 'Rolling...';
+        combatState.defenderInterval = setInterval(() => {
+            defenderDice.textContent = getDiceFace(Math.floor(Math.random() * 6) + 1);
+        }, 100);
     }
 
-    // Stop rolling animations
-    attackerDice.classList.remove('rolling', 'clickable', 'waiting');
-    defenderDice.classList.remove('rolling', 'clickable', 'waiting');
-
-    // Show final dice values
-    attackerDice.textContent = getDiceFace(combat.attackerRoll);
-    defenderDice.textContent = getDiceFace(combat.defenderRoll);
-
-    // Show roll values
-    attackerResult.textContent = `Rolled ${combat.attackerRoll}`;
-    defenderResult.textContent = `Rolled ${combat.defenderRoll}`;
-
-    // After a beat, show winner and damage
+    // Let defender's dice spin for a moment before revealing
     setTimeout(() => {
-        if (combat.winner === 'attacker') {
-            attackerResult.textContent = `Rolled ${combat.attackerRoll} - WINS!`;
-            attackerResult.className = 'combat-result hit';
-            defenderResult.textContent = `Rolled ${combat.defenderRoll} - loses`;
-            defenderResult.className = 'combat-result miss';
-
-            setTimeout(() => {
-                defenderDamage.textContent = `-${combat.damage}`;
-                defenderDamage.className = 'damage-number show';
-            }, 300);
-        } else {
-            defenderResult.textContent = `Rolled ${combat.defenderRoll} - WINS!`;
-            defenderResult.className = 'combat-result hit';
-            attackerResult.textContent = `Rolled ${combat.attackerRoll} - loses`;
-            attackerResult.className = 'combat-result miss';
-
-            setTimeout(() => {
-                attackerDamage.textContent = `-${combat.damage}`;
-                attackerDamage.className = 'damage-number show';
-            }, 300);
+        // Clear any rolling intervals
+        if (combatState) {
+            if (combatState.attackerInterval) clearInterval(combatState.attackerInterval);
+            if (combatState.defenderInterval) clearInterval(combatState.defenderInterval);
         }
 
-        // After showing results, hide overlay
+        // Stop rolling animations
+        attackerDice.classList.remove('rolling', 'clickable', 'waiting');
+        defenderDice.classList.remove('rolling', 'clickable', 'waiting');
+
+        // Show final dice values
+        attackerDice.textContent = getDiceFace(combat.attackerRoll);
+        defenderDice.textContent = getDiceFace(combat.defenderRoll);
+
+        // Show roll values
+        attackerResult.textContent = `Rolled ${combat.attackerRoll}`;
+        defenderResult.textContent = `Rolled ${combat.defenderRoll}`;
+
+        // After a beat, show winner and damage
         setTimeout(() => {
-            hideCombatOverlay();
-        }, 2500);
-    }, 800);
+            if (combat.winner === 'attacker') {
+                attackerResult.textContent = `Rolled ${combat.attackerRoll} - WINS!`;
+                attackerResult.className = 'combat-result hit';
+                defenderResult.textContent = `Rolled ${combat.defenderRoll} - loses`;
+                defenderResult.className = 'combat-result miss';
+
+                setTimeout(() => {
+                    defenderDamage.textContent = `-${combat.damage}`;
+                    defenderDamage.className = 'damage-number show';
+                }, 300);
+            } else {
+                defenderResult.textContent = `Rolled ${combat.defenderRoll} - WINS!`;
+                defenderResult.className = 'combat-result hit';
+                attackerResult.textContent = `Rolled ${combat.attackerRoll} - loses`;
+                attackerResult.className = 'combat-result miss';
+
+                setTimeout(() => {
+                    attackerDamage.textContent = `-${combat.damage}`;
+                    attackerDamage.className = 'damage-number show';
+                }, 300);
+            }
+
+            // After showing results, hide overlay (longer delay)
+            setTimeout(() => {
+                hideCombatOverlay();
+            }, 4000);
+        }, 800);
+    }, 1000); // Let defender's dice spin for 1 second
 }
 
 function hideCombatOverlay() {
