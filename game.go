@@ -2,13 +2,38 @@ package main
 
 import "github.com/gorilla/websocket"
 
-// Game represents the tic-tac-toe game state
+const BoardSize = 9
+const MaxHP = 10
+
+// Unit represents a player's unit on the board
+type Unit struct {
+	X     int `json:"x"`
+	Y     int `json:"y"`
+	HP    int `json:"hp"`
+	MaxHP int `json:"maxHp"`
+}
+
+// CombatResult holds the details of a combat exchange for animation
+type CombatResult struct {
+	AttackerMark   string `json:"attackerMark"`   // "X" or "O"
+	DefenderMark   string `json:"defenderMark"`   // "X" or "O"
+	AttackerRoll   int    `json:"attackerRoll"`   // 1-6
+	DefenderRoll   int    `json:"defenderRoll"`   // 1-6
+	AttackerHit    bool   `json:"attackerHit"`    // Did attacker deal damage?
+	DefenderHit    bool   `json:"defenderHit"`    // Did defender counter?
+	AttackerDamage int    `json:"attackerDamage"` // Damage dealt by attacker
+	DefenderDamage int    `json:"defenderDamage"` // Damage dealt by defender
+}
+
+// Game represents the Grid Wars game state
 type Game struct {
-	Board   [3][3]string `json:"board"`  // "", "X", or "O"
-	Turn    string       `json:"turn"`   // "X" or "O"
-	Winner  string       `json:"winner"` // "", "X", "O", or "draw"
-	PlayerX *Player      `json:"-"`      // - means don't include in JSON
-	PlayerO *Player      `json:"-"`
+	Board   [BoardSize][BoardSize]string `json:"board"`  // "", "X", or "O"
+	Turn    string                       `json:"turn"`   // "X" or "O"
+	Winner  string                       `json:"winner"` // "", "X", or "O"
+	PlayerX *Player                      `json:"-"`      // - means don't include in JSON
+	PlayerO *Player                      `json:"-"`
+	UnitX   *Unit                        `json:"unitX"`
+	UnitO   *Unit                        `json:"unitO"`
 }
 
 // Player represents a connected player
@@ -28,53 +53,43 @@ type ClientMessage struct {
 
 // ServerMessage is what we send to the browser
 type ServerMessage struct {
-	Type    string `json:"type"`              // "state", "error", "assigned", "chat"
-	Game    *Game  `json:"game,omitempty"`    // Current game state
-	Mark    string `json:"mark,omitempty"`    // "X", "O", or "spectator"
-	Error   string `json:"error,omitempty"`
-	From    string `json:"from,omitempty"`    // Role: "X", "O", "spectator", "system"
-	Name    string `json:"name,omitempty"`    // Display name (optional)
-	Message string `json:"message,omitempty"` // Chat message text
+	Type    string        `json:"type"`              // "state", "error", "assigned", "chat", "combat"
+	Game    *Game         `json:"game,omitempty"`    // Current game state
+	Mark    string        `json:"mark,omitempty"`    // "X", "O", or "spectator"
+	Error   string        `json:"error,omitempty"`
+	From    string        `json:"from,omitempty"`    // Role: "X", "O", "spectator", "system"
+	Name    string        `json:"name,omitempty"`    // Display name (optional)
+	Message string        `json:"message,omitempty"` // Chat message text
+	Combat  *CombatResult `json:"combat,omitempty"`  // Combat result for animation
 }
 
 // Global game state - only touched by game manager goroutine, no mutex needed!
-var game = &Game{Turn: "X"}
+var game = newGame()
 
-// checkWinner checks if someone won or if it's a draw
+// newGame creates a fresh game with units initialized
+func newGame() *Game {
+	g := &Game{Turn: "X"}
+	g.initializeUnits()
+	return g
+}
+
+// initializeUnits spawns units in opposite corners
+func (g *Game) initializeUnits() {
+	// X spawns bottom-left (0, 8), O spawns top-right (8, 0)
+	g.UnitX = &Unit{X: 0, Y: BoardSize - 1, HP: MaxHP, MaxHP: MaxHP}
+	g.UnitO = &Unit{X: BoardSize - 1, Y: 0, HP: MaxHP, MaxHP: MaxHP}
+	g.Board[g.UnitX.Y][g.UnitX.X] = "X"
+	g.Board[g.UnitO.Y][g.UnitO.X] = "O"
+}
+
+// checkWinner checks if a unit has been eliminated
 func (g *Game) checkWinner() {
-	// Check rows
-	for y := 0; y < 3; y++ {
-		if g.Board[y][0] != "" && g.Board[y][0] == g.Board[y][1] && g.Board[y][1] == g.Board[y][2] {
-			g.Winner = g.Board[y][0]
-			return
-		}
-	}
-
-	// Check columns
-	for x := 0; x < 3; x++ {
-		if g.Board[0][x] != "" && g.Board[0][x] == g.Board[1][x] && g.Board[1][x] == g.Board[2][x] {
-			g.Winner = g.Board[0][x]
-			return
-		}
-	}
-
-	// Check diagonals
-	if g.Board[0][0] != "" && g.Board[0][0] == g.Board[1][1] && g.Board[1][1] == g.Board[2][2] {
-		g.Winner = g.Board[0][0]
+	if g.UnitX != nil && g.UnitX.HP <= 0 {
+		g.Winner = "O"
 		return
 	}
-	if g.Board[0][2] != "" && g.Board[0][2] == g.Board[1][1] && g.Board[1][1] == g.Board[2][0] {
-		g.Winner = g.Board[0][2]
+	if g.UnitO != nil && g.UnitO.HP <= 0 {
+		g.Winner = "X"
 		return
 	}
-
-	// Check for draw (all cells filled, no winner)
-	for y := 0; y < 3; y++ {
-		for x := 0; x < 3; x++ {
-			if g.Board[y][x] == "" {
-				return // Empty cell found, game not over
-			}
-		}
-	}
-	g.Winner = "draw"
 }

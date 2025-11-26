@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Noughts and Crosses</title>
+    <title>Grid Wars</title>
     <style>
         * {
             box-sizing: border-box;
@@ -31,21 +31,22 @@
         }
         .board {
             display: grid;
-            grid-template-columns: repeat(3, 100px);
-            grid-template-rows: repeat(3, 100px);
-            gap: 5px;
+            grid-template-columns: repeat(9, 50px);
+            grid-template-rows: repeat(9, 50px);
+            gap: 2px;
             margin: 0 auto 20px;
         }
         .cell {
             background: #16213e;
-            border: 2px solid #0f3460;
-            font-size: 48px;
+            border: 1px solid #0f3460;
+            font-size: 24px;
             font-weight: bold;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: background 0.2s;
+            position: relative;
         }
         .cell:hover {
             background: #1f4068;
@@ -55,6 +56,36 @@
         }
         .cell.o {
             color: #00d9ff;
+        }
+        .cell.selected {
+            box-shadow: 0 0 10px #ffcc00, inset 0 0 5px rgba(255, 204, 0, 0.3);
+            background: #2a3a58;
+        }
+        .cell.valid-move {
+            box-shadow: inset 0 0 8px #4ade80;
+            background: rgba(74, 222, 128, 0.15);
+        }
+        .cell.valid-attack {
+            box-shadow: inset 0 0 8px #ef4444;
+            background: rgba(239, 68, 68, 0.15);
+        }
+        .hp-bar {
+            position: absolute;
+            bottom: 2px;
+            left: 2px;
+            right: 2px;
+            height: 4px;
+            background: #333;
+            border-radius: 2px;
+        }
+        .hp-fill {
+            height: 100%;
+            background: #4ade80;
+            border-radius: 2px;
+            transition: width 0.3s;
+        }
+        .hp-fill.low {
+            background: #ef4444;
         }
         button {
             background: #e94560;
@@ -76,7 +107,7 @@
         }
         .chat-container {
             margin-top: 20px;
-            width: 315px;
+            width: 466px;
         }
         .chat-messages {
             background: #16213e;
@@ -146,11 +177,112 @@
             display: inline-block;
             padding: 10px 15px;
         }
+
+        /* Dice Combat Overlay */
+        .combat-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            flex-direction: column;
+        }
+        .combat-overlay.active {
+            display: flex;
+        }
+        .combat-title {
+            font-size: 48px;
+            font-weight: bold;
+            margin-bottom: 40px;
+            text-transform: uppercase;
+            letter-spacing: 8px;
+            animation: pulse 0.5s ease-in-out infinite alternate;
+        }
+        @keyframes pulse {
+            from { transform: scale(1); }
+            to { transform: scale(1.05); }
+        }
+        .combat-arena {
+            display: flex;
+            gap: 100px;
+            align-items: center;
+        }
+        .combatant {
+            text-align: center;
+            min-width: 200px;
+        }
+        .combatant-label {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        .combatant-label.x {
+            color: #e94560;
+        }
+        .combatant-label.o {
+            color: #00d9ff;
+        }
+        .dice-container {
+            font-size: 120px;
+            height: 150px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .dice {
+            display: inline-block;
+            transition: transform 0.1s;
+        }
+        .dice.rolling {
+            animation: roll 0.1s linear infinite;
+        }
+        @keyframes roll {
+            0% { transform: rotate(0deg); }
+            25% { transform: rotate(90deg); }
+            50% { transform: rotate(180deg); }
+            75% { transform: rotate(270deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .combat-result {
+            font-size: 28px;
+            margin-top: 20px;
+            min-height: 40px;
+            font-weight: bold;
+        }
+        .combat-result.hit {
+            color: #4ade80;
+        }
+        .combat-result.miss {
+            color: #666;
+        }
+        .damage-number {
+            font-size: 64px;
+            font-weight: bold;
+            color: #ef4444;
+            margin-top: 10px;
+            opacity: 0;
+            transform: scale(0);
+            transition: all 0.3s ease-out;
+        }
+        .damage-number.show {
+            opacity: 1;
+            transform: scale(1);
+        }
+        .vs-text {
+            font-size: 48px;
+            font-weight: bold;
+            color: #666;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Noughts and Crosses</h1>
+        <h1>Grid Wars</h1>
         <div id="player-info" class="player-info"></div>
         <div class="name-input">
             <input type="text" id="name-input" placeholder="Enter your name" />
@@ -165,6 +297,30 @@
             <div class="chat-input">
                 <input type="text" id="chat-input" placeholder="Type a message..." />
                 <button id="chat-send">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Combat Dice Overlay -->
+    <div class="combat-overlay" id="combat-overlay">
+        <div class="combat-title">COMBAT!</div>
+        <div class="combat-arena">
+            <div class="combatant" id="attacker-side">
+                <div class="combatant-label" id="attacker-label">X</div>
+                <div class="dice-container">
+                    <span class="dice" id="attacker-dice">⚀</span>
+                </div>
+                <div class="combat-result" id="attacker-result"></div>
+                <div class="damage-number" id="attacker-damage"></div>
+            </div>
+            <div class="vs-text">VS</div>
+            <div class="combatant" id="defender-side">
+                <div class="combatant-label" id="defender-label">O</div>
+                <div class="dice-container">
+                    <span class="dice" id="defender-dice">⚀</span>
+                </div>
+                <div class="combat-result" id="defender-result"></div>
+                <div class="damage-number" id="defender-damage"></div>
             </div>
         </div>
     </div>

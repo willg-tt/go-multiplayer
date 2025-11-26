@@ -7,6 +7,7 @@ const (
 	ActionJoin    ActionType = "join"
 	ActionLeave   ActionType = "leave"
 	ActionMove    ActionType = "move"
+	ActionAttack  ActionType = "attack"
 	ActionReset   ActionType = "reset"
 	ActionChat    ActionType = "chat"
 	ActionSetName ActionType = "setName"

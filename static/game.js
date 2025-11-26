@@ -1,6 +1,11 @@
 let myMark = null;
 let gameState = null;
 let ws = null;
+let selectedCell = null; // {x, y} of selected unit
+let pendingGameState = null; // Game state to apply after combat animation
+
+const BOARD_SIZE = 9;
+const DICE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅']; // 1-6
 
 function connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -30,8 +35,15 @@ function handleMessage(msg) {
 
         case 'state':
             gameState = msg.game;
+            selectedCell = null;
             renderBoard();
             updateStatus();
+            break;
+
+        case 'combat':
+            // Store the new game state, show animation, then apply
+            pendingGameState = msg.game;
+            showCombatAnimation(msg.combat);
             break;
 
         case 'error':
@@ -44,12 +56,124 @@ function handleMessage(msg) {
     }
 }
 
+// Dice animation functions
+function getDiceFace(value) {
+    return DICE_FACES[value - 1] || '⚀';
+}
+
+function showCombatAnimation(combat) {
+    const overlay = document.getElementById('combat-overlay');
+    const attackerLabel = document.getElementById('attacker-label');
+    const defenderLabel = document.getElementById('defender-label');
+    const attackerDice = document.getElementById('attacker-dice');
+    const defenderDice = document.getElementById('defender-dice');
+    const attackerResult = document.getElementById('attacker-result');
+    const defenderResult = document.getElementById('defender-result');
+    const attackerDamage = document.getElementById('attacker-damage');
+    const defenderDamage = document.getElementById('defender-damage');
+
+    // Set up labels
+    attackerLabel.textContent = combat.attackerMark;
+    attackerLabel.className = 'combatant-label ' + combat.attackerMark.toLowerCase();
+    defenderLabel.textContent = combat.defenderMark;
+    defenderLabel.className = 'combatant-label ' + combat.defenderMark.toLowerCase();
+
+    // Reset state
+    attackerDice.textContent = '⚀';
+    defenderDice.textContent = '⚀';
+    attackerResult.textContent = '';
+    attackerResult.className = 'combat-result';
+    defenderResult.textContent = '';
+    defenderResult.className = 'combat-result';
+    attackerDamage.textContent = '';
+    attackerDamage.className = 'damage-number';
+    defenderDamage.textContent = '';
+    defenderDamage.className = 'damage-number';
+
+    // Show overlay
+    overlay.classList.add('active');
+
+    // Start rolling animation
+    attackerDice.classList.add('rolling');
+    defenderDice.classList.add('rolling');
+
+    // Randomly change dice faces during roll
+    let rollCount = 0;
+    const rollInterval = setInterval(() => {
+        attackerDice.textContent = getDiceFace(Math.floor(Math.random() * 6) + 1);
+        defenderDice.textContent = getDiceFace(Math.floor(Math.random() * 6) + 1);
+        rollCount++;
+    }, 100);
+
+    // After 1.5 seconds, stop rolling and show attacker result
+    setTimeout(() => {
+        clearInterval(rollInterval);
+        attackerDice.classList.remove('rolling');
+        attackerDice.textContent = getDiceFace(combat.attackerRoll);
+
+        // Show attacker result after a beat
+        setTimeout(() => {
+            if (combat.attackerHit) {
+                attackerResult.textContent = `Rolled ${combat.attackerRoll} - HIT!`;
+                attackerResult.className = 'combat-result hit';
+                // Show damage on defender side
+                setTimeout(() => {
+                    defenderDamage.textContent = `-${combat.attackerDamage}`;
+                    defenderDamage.className = 'damage-number show';
+                }, 300);
+            } else {
+                attackerResult.textContent = `Rolled ${combat.attackerRoll} - Miss (need 3+)`;
+                attackerResult.className = 'combat-result miss';
+            }
+
+            // Stop defender dice and show result
+            setTimeout(() => {
+                defenderDice.classList.remove('rolling');
+                defenderDice.textContent = getDiceFace(combat.defenderRoll);
+
+                setTimeout(() => {
+                    if (combat.defenderHit) {
+                        defenderResult.textContent = `Rolled ${combat.defenderRoll} - COUNTER!`;
+                        defenderResult.className = 'combat-result hit';
+                        // Show damage on attacker side
+                        setTimeout(() => {
+                            attackerDamage.textContent = `-${combat.defenderDamage}`;
+                            attackerDamage.className = 'damage-number show';
+                        }, 300);
+                    } else {
+                        defenderResult.textContent = `Rolled ${combat.defenderRoll} - No counter (need 5+)`;
+                        defenderResult.className = 'combat-result miss';
+                    }
+
+                    // After showing all results, hide overlay and update game state
+                    setTimeout(() => {
+                        hideCombatOverlay();
+                    }, 6000);
+                }, 300);
+            }, 800);
+        }, 300);
+    }, 1500);
+}
+
+function hideCombatOverlay() {
+    const overlay = document.getElementById('combat-overlay');
+    overlay.classList.remove('active');
+
+    // Apply the pending game state
+    if (pendingGameState) {
+        gameState = pendingGameState;
+        pendingGameState = null;
+        selectedCell = null;
+        renderBoard();
+        updateStatus();
+    }
+}
+
 function addChatMessage(from, name, message) {
     const chatMessages = document.getElementById('chat-messages');
     const msgEl = document.createElement('div');
     msgEl.className = 'chat-message';
 
-    // Build display name: "Name (Role)" or just "Role"
     let displayName = from;
     if (name) {
         displayName = `${name} (${from})`;
@@ -75,56 +199,187 @@ function sendChat() {
     }
 }
 
+// Get the current player's unit
+function getMyUnit() {
+    if (myMark === 'X') return gameState.unitX;
+    if (myMark === 'O') return gameState.unitO;
+    return null;
+}
+
+// Get the enemy's unit
+function getEnemyUnit() {
+    if (myMark === 'X') return gameState.unitO;
+    if (myMark === 'O') return gameState.unitX;
+    return null;
+}
+
+// Check if two positions are adjacent (within 1 square)
+function isAdjacent(x1, y1, x2, y2) {
+    const dx = Math.abs(x1 - x2);
+    const dy = Math.abs(y1 - y2);
+    return dx <= 1 && dy <= 1 && !(dx === 0 && dy === 0);
+}
+
+// Check if a move to (x, y) is valid for the current player
+function isValidMove(x, y) {
+    if (!gameState || gameState.winner) return false;
+    if (gameState.turn !== myMark) return false;
+
+    const unit = getMyUnit();
+    if (!unit) return false;
+
+    // Must be adjacent
+    if (!isAdjacent(unit.x, unit.y, x, y)) return false;
+
+    // Must be empty
+    if (gameState.board[y][x] !== '') return false;
+
+    // Must be in bounds
+    if (x < 0 || x >= BOARD_SIZE || y < 0 || y >= BOARD_SIZE) return false;
+
+    return true;
+}
+
+// Check if attacking at (x, y) is valid
+function isValidAttack(x, y) {
+    if (!gameState || gameState.winner) return false;
+    if (gameState.turn !== myMark) return false;
+
+    const myUnit = getMyUnit();
+    const enemyUnit = getEnemyUnit();
+    if (!myUnit || !enemyUnit) return false;
+
+    // Target must be the enemy position
+    if (enemyUnit.x !== x || enemyUnit.y !== y) return false;
+
+    // Enemy must be adjacent
+    if (!isAdjacent(myUnit.x, myUnit.y, x, y)) return false;
+
+    return true;
+}
+
 function renderBoard() {
     const boardEl = document.getElementById('board');
     boardEl.innerHTML = '';
 
-    for (let y = 0; y < 3; y++) {
-        for (let x = 0; x < 3; x++) {
+    const myUnit = getMyUnit();
+
+    for (let y = 0; y < BOARD_SIZE; y++) {
+        for (let x = 0; x < BOARD_SIZE; x++) {
             const cell = document.createElement('div');
             cell.className = 'cell';
+            cell.dataset.x = x;
+            cell.dataset.y = y;
+
             const value = gameState.board[y][x];
 
             if (value) {
                 cell.textContent = value;
                 cell.classList.add(value.toLowerCase());
+
+                // Add HP bar for units
+                const unit = value === 'X' ? gameState.unitX : gameState.unitO;
+                if (unit && unit.hp > 0) {
+                    const hpBar = document.createElement('div');
+                    hpBar.className = 'hp-bar';
+                    const hpFill = document.createElement('div');
+                    hpFill.className = 'hp-fill';
+                    const hpPercent = (unit.hp / unit.maxHp) * 100;
+                    if (hpPercent <= 30) {
+                        hpFill.classList.add('low');
+                    }
+                    hpFill.style.width = `${hpPercent}%`;
+                    hpBar.appendChild(hpFill);
+                    cell.appendChild(hpBar);
+                }
             }
 
-            cell.onclick = () => makeMove(x, y);
+            // Highlight selected cell
+            if (selectedCell && selectedCell.x === x && selectedCell.y === y) {
+                cell.classList.add('selected');
+            }
+
+            // Highlight valid moves/attacks when a unit is selected
+            if (selectedCell && myUnit) {
+                if (isValidMove(x, y)) {
+                    cell.classList.add('valid-move');
+                } else if (isValidAttack(x, y)) {
+                    cell.classList.add('valid-attack');
+                }
+            }
+
+            cell.onclick = () => handleCellClick(x, y);
             boardEl.appendChild(cell);
         }
     }
+}
+
+function handleCellClick(x, y) {
+    if (!gameState || gameState.winner) return;
+    if (gameState.turn !== myMark) return;
+
+    const myUnit = getMyUnit();
+    if (!myUnit) return;
+
+    // If clicking on my own unit - select it
+    if (myUnit.x === x && myUnit.y === y) {
+        if (selectedCell && selectedCell.x === x && selectedCell.y === y) {
+            // Clicking selected unit again - deselect
+            selectedCell = null;
+        } else {
+            // Select this unit
+            selectedCell = { x, y };
+        }
+        renderBoard();
+        return;
+    }
+
+    // If no unit selected, do nothing
+    if (!selectedCell) return;
+
+    // If clicking on valid move target - move
+    if (isValidMove(x, y)) {
+        ws.send(JSON.stringify({ type: 'move', x: x, y: y }));
+        return;
+    }
+
+    // If clicking on valid attack target - attack
+    if (isValidAttack(x, y)) {
+        ws.send(JSON.stringify({ type: 'attack', x: x, y: y }));
+        return;
+    }
+
+    // Clicking elsewhere - deselect
+    selectedCell = null;
+    renderBoard();
 }
 
 function updateStatus() {
     const statusEl = document.getElementById('status');
     const resetBtn = document.getElementById('reset-btn');
 
+    // Build HP info with max
+    const xHP = gameState.unitX ? gameState.unitX.hp : 0;
+    const xMaxHP = gameState.unitX ? gameState.unitX.maxHp : 10;
+    const oHP = gameState.unitO ? gameState.unitO.hp : 0;
+    const oMaxHP = gameState.unitO ? gameState.unitO.maxHp : 10;
+    const hpInfo = `X: ${xHP}/${xMaxHP} HP | O: ${oHP}/${oMaxHP} HP`;
+
     if (gameState.winner) {
-        if (gameState.winner === 'draw') {
-            statusEl.textContent = "It's a draw!";
-        } else if (gameState.winner === myMark) {
-            statusEl.textContent = "You win!";
+        if (gameState.winner === myMark) {
+            statusEl.textContent = `You win! (${hpInfo})`;
         } else {
-            statusEl.textContent = "You lose!";
+            statusEl.textContent = `You lose! (${hpInfo})`;
         }
         resetBtn.style.display = 'inline-block';
     } else {
         if (gameState.turn === myMark) {
-            statusEl.textContent = "Your turn!";
+            statusEl.textContent = `Your turn! ${hpInfo}`;
         } else {
-            statusEl.textContent = "Waiting for opponent...";
+            statusEl.textContent = `Waiting... ${hpInfo}`;
         }
         resetBtn.style.display = 'none';
     }
-}
-
-function makeMove(x, y) {
-    if (!gameState || gameState.winner) return;
-    if (gameState.turn !== myMark) return;
-    if (gameState.board[y][x] !== '') return;
-
-    ws.send(JSON.stringify({ type: 'move', x: x, y: y }));
 }
 
 function resetGame() {

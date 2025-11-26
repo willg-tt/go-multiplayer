@@ -1,6 +1,10 @@
 package main
 
-import "github.com/gorilla/websocket"
+import (
+	"math/rand"
+
+	"github.com/gorilla/websocket"
+)
 
 // Client represents any connected user (player or spectator)
 type Client struct {
@@ -39,6 +43,9 @@ func startGameManager() {
 
 		case ActionMove:
 			handleMoveAction(action.Client, action.X, action.Y)
+
+		case ActionAttack:
+			handleAttackAction(action.Client, action.X, action.Y)
 
 		case ActionReset:
 			handleResetAction()
@@ -117,19 +124,39 @@ func handleMoveAction(client *Client, x, y int) {
 		return
 	}
 
-	// Validate position
-	if x < 0 || x > 2 || y < 0 || y > 2 {
-		sendJSON(client.Conn, ServerMessage{Type: "error", Error: "Invalid position"})
+	// Get the player's unit
+	var unit *Unit
+	if client.Role == "X" {
+		unit = game.UnitX
+	} else {
+		unit = game.UnitO
+	}
+
+	// Validate move is exactly 1 square away (8 directions)
+	dx := x - unit.X
+	dy := y - unit.Y
+	if abs(dx) > 1 || abs(dy) > 1 || (dx == 0 && dy == 0) {
+		sendJSON(client.Conn, ServerMessage{Type: "error", Error: "Can only move 1 square"})
 		return
 	}
 
+	// Validate position is in bounds
+	if x < 0 || x >= BoardSize || y < 0 || y >= BoardSize {
+		sendJSON(client.Conn, ServerMessage{Type: "error", Error: "Out of bounds"})
+		return
+	}
+
+	// Validate destination is empty
 	if game.Board[y][x] != "" {
-		sendJSON(client.Conn, ServerMessage{Type: "error", Error: "Cell already taken"})
+		sendJSON(client.Conn, ServerMessage{Type: "error", Error: "Square occupied"})
 		return
 	}
 
-	// Make the move
-	game.Board[y][x] = client.Role
+	// Move the unit
+	game.Board[unit.Y][unit.X] = "" // Clear old position
+	unit.X = x
+	unit.Y = y
+	game.Board[y][x] = client.Role // Set new position
 
 	// Switch turns
 	if game.Turn == "X" {
@@ -138,17 +165,23 @@ func handleMoveAction(client *Client, x, y int) {
 		game.Turn = "X"
 	}
 
-	// Check for winner
-	game.checkWinner()
-
 	// Broadcast to everyone
 	broadcastToAll(ServerMessage{Type: "state", Game: game})
 }
 
+// abs returns the absolute value of n
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
+}
+
 func handleResetAction() {
-	game.Board = [3][3]string{}
+	game.Board = [BoardSize][BoardSize]string{}
 	game.Turn = "X"
 	game.Winner = ""
+	game.initializeUnits()
 
 	// Swap players
 	if game.PlayerX != nil && game.PlayerO != nil {
@@ -171,6 +204,111 @@ func handleResetAction() {
 		sendJSON(client.Conn, ServerMessage{Type: "assigned", Mark: client.Role})
 	}
 	broadcastToAll(ServerMessage{Type: "state", Game: game})
+}
+
+func handleAttackAction(client *Client, x, y int) {
+	// Only players can attack
+	if client.Role != "X" && client.Role != "O" {
+		sendJSON(client.Conn, ServerMessage{Type: "error", Error: "Spectators cannot attack"})
+		return
+	}
+
+	// Validate turn
+	if game.Turn != client.Role {
+		sendJSON(client.Conn, ServerMessage{Type: "error", Error: "Not your turn"})
+		return
+	}
+
+	// Validate game not over
+	if game.Winner != "" {
+		sendJSON(client.Conn, ServerMessage{Type: "error", Error: "Game is over"})
+		return
+	}
+
+	// Get attacker and defender units and marks
+	var attacker, defender *Unit
+	var attackerMark, defenderMark string
+	if client.Role == "X" {
+		attacker = game.UnitX
+		defender = game.UnitO
+		attackerMark = "X"
+		defenderMark = "O"
+	} else {
+		attacker = game.UnitO
+		defender = game.UnitX
+		attackerMark = "O"
+		defenderMark = "X"
+	}
+
+	// Check if clicking on the enemy position
+	if defender.X != x || defender.Y != y {
+		sendJSON(client.Conn, ServerMessage{Type: "error", Error: "No enemy at that position"})
+		return
+	}
+
+	// Check if enemy is within 1 square (adjacent)
+	dx := abs(attacker.X - defender.X)
+	dy := abs(attacker.Y - defender.Y)
+	if dx > 1 || dy > 1 {
+		sendJSON(client.Conn, ServerMessage{Type: "error", Error: "Enemy not in range"})
+		return
+	}
+
+	// Combat resolution with dice rolls
+	attackRoll := rand.Intn(6) + 1 // 1-6
+	defendRoll := rand.Intn(6) + 1 // 1-6
+
+	// Build combat result for animation
+	combat := &CombatResult{
+		AttackerMark: attackerMark,
+		DefenderMark: defenderMark,
+		AttackerRoll: attackRoll,
+		DefenderRoll: defendRoll,
+	}
+
+	// Attacker hits on 3+ (67% chance), damage = roll value
+	if attackRoll >= 3 {
+		combat.AttackerHit = true
+		combat.AttackerDamage = attackRoll
+		defender.HP -= attackRoll
+		if defender.HP < 0 {
+			defender.HP = 0
+		}
+	}
+
+	// Defender counter-attacks on 5+ (33% chance), damage = roll value
+	if defendRoll >= 5 {
+		combat.DefenderHit = true
+		combat.DefenderDamage = defendRoll
+		attacker.HP -= defendRoll
+		if attacker.HP < 0 {
+			attacker.HP = 0
+		}
+	}
+
+	// Check for winner
+	game.checkWinner()
+
+	// If defender eliminated, remove from board
+	if defender.HP <= 0 {
+		game.Board[defender.Y][defender.X] = ""
+	}
+	// If attacker eliminated (from counter), remove from board
+	if attacker.HP <= 0 {
+		game.Board[attacker.Y][attacker.X] = ""
+	}
+
+	// Switch turns (if game not over)
+	if game.Winner == "" {
+		if game.Turn == "X" {
+			game.Turn = "O"
+		} else {
+			game.Turn = "X"
+		}
+	}
+
+	// Broadcast combat result and new state to everyone
+	broadcastToAll(ServerMessage{Type: "combat", Game: game, Combat: combat})
 }
 
 func handleChatAction(client *Client, text string) {
