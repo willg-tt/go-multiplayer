@@ -15,13 +15,22 @@ type Unit struct {
 
 // CombatResult holds the details of a combat exchange for animation
 type CombatResult struct {
-	AttackerMark string `json:"attackerMark"` // "X" or "O"
-	DefenderMark string `json:"defenderMark"` // "X" or "O"
-	AttackerRoll int    `json:"attackerRoll"` // 1-6
-	DefenderRoll int    `json:"defenderRoll"` // 1-6
-	Winner       string `json:"winner"`       // "attacker" or "defender"
-	Damage       int    `json:"damage"`       // Damage dealt to loser
-	LoserMark    string `json:"loserMark"`    // Who took damage ("X" or "O")
+	AttackerMark   string `json:"attackerMark"`             // "X" or "O"
+	DefenderMark   string `json:"defenderMark"`             // "X" or "O"
+	AttackerRoll   int    `json:"attackerRoll"`             // 1-6
+	DefenderRoll   int    `json:"defenderRoll"`             // 1-6
+	Winner         string `json:"winner"`                   // "attacker" or "defender"
+	Damage         int    `json:"damage"`                   // Damage dealt to loser
+	LoserMark      string `json:"loserMark"`                // Who took damage ("X" or "O")
+	AttackerRolled bool   `json:"attackerRolled,omitempty"` // Has attacker clicked their dice?
+	DefenderRolled bool   `json:"defenderRolled,omitempty"` // Has defender clicked their dice?
+}
+
+// PendingCombat tracks an in-progress combat waiting for both players to roll
+type PendingCombat struct {
+	Combat   *CombatResult
+	Attacker *Unit
+	Defender *Unit
 }
 
 // Game represents the Grid Wars game state
@@ -64,6 +73,9 @@ type ServerMessage struct {
 
 // Global game state - only touched by game manager goroutine, no mutex needed!
 var game = newGame()
+
+// Pending combat - set when combat starts, cleared when both roll
+var pendingCombat *PendingCombat
 
 // newGame creates a fresh game with units initialized
 func newGame() *Game {

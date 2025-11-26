@@ -8,6 +8,7 @@ const (
 	ActionLeave   ActionType = "leave"
 	ActionMove    ActionType = "move"
 	ActionAttack  ActionType = "attack"
+	ActionRoll    ActionType = "roll"
 	ActionReset   ActionType = "reset"
 	ActionChat    ActionType = "chat"
 	ActionSetName ActionType = "setName"

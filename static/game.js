@@ -3,6 +3,7 @@ let gameState = null;
 let ws = null;
 let selectedCell = null; // {x, y} of selected unit
 let pendingGameState = null; // Game state to apply after combat animation
+let combatState = null; // Tracks current combat {attackerMark, defenderMark, attackerRolled, defenderRolled, myRoll}
 
 const BOARD_SIZE = 9;
 const DICE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅']; // 1-6
@@ -40,10 +41,20 @@ function handleMessage(msg) {
             updateStatus();
             break;
 
+        case 'combat_start':
+            // Combat initiated - show overlay with clickable dice
+            showCombatStart(msg.combat);
+            break;
+
+        case 'combat_rolled':
+            // A player clicked their dice
+            handleCombatRolled(msg.combat);
+            break;
+
         case 'combat':
-            // Store the new game state, show animation, then apply
+            // Both rolled - show final result
             pendingGameState = msg.game;
-            showCombatAnimation(msg.combat);
+            showCombatResult(msg.combat);
             break;
 
         case 'error':
@@ -61,7 +72,8 @@ function getDiceFace(value) {
     return DICE_FACES[value - 1] || '⚀';
 }
 
-function showCombatAnimation(combat) {
+// Show combat overlay when combat starts - dice are clickable
+function showCombatStart(combat) {
     const overlay = document.getElementById('combat-overlay');
     const attackerLabel = document.getElementById('attacker-label');
     const defenderLabel = document.getElementById('defender-label');
@@ -71,6 +83,16 @@ function showCombatAnimation(combat) {
     const defenderResult = document.getElementById('defender-result');
     const attackerDamage = document.getElementById('attacker-damage');
     const defenderDamage = document.getElementById('defender-damage');
+
+    // Store combat state
+    combatState = {
+        attackerMark: combat.attackerMark,
+        defenderMark: combat.defenderMark,
+        attackerRolled: false,
+        defenderRolled: false,
+        attackerInterval: null,
+        defenderInterval: null
+    };
 
     // Set up labels
     attackerLabel.textContent = combat.attackerMark + ' (attacker)';
@@ -90,72 +112,173 @@ function showCombatAnimation(combat) {
     defenderDamage.textContent = '';
     defenderDamage.className = 'damage-number';
 
+    // Attacker always rolls first
+    const isAttacker = myMark === combat.attackerMark;
+    const isDefender = myMark === combat.defenderMark;
+
+    attackerDice.classList.remove('clickable', 'rolling', 'waiting');
+    defenderDice.classList.remove('clickable', 'rolling', 'waiting');
+
+    // Attacker's dice is clickable if you're the attacker
+    if (isAttacker) {
+        attackerDice.classList.add('clickable');
+        attackerResult.textContent = 'Click to roll!';
+    } else {
+        attackerDice.classList.add('waiting');
+        attackerResult.textContent = 'Waiting...';
+    }
+
+    // Defender must wait for attacker to roll first
+    defenderDice.classList.add('waiting');
+    defenderResult.textContent = 'Waiting for attacker...';
+
     // Show overlay
     overlay.classList.add('active');
+}
 
-    // Start rolling animation
-    attackerDice.classList.add('rolling');
-    defenderDice.classList.add('rolling');
+// Handle dice click - send roll to server
+function handleDiceClick(side) {
+    if (!combatState) return;
 
-    // Randomly change dice faces during roll
-    const rollInterval = setInterval(() => {
-        attackerDice.textContent = getDiceFace(Math.floor(Math.random() * 6) + 1);
-        defenderDice.textContent = getDiceFace(Math.floor(Math.random() * 6) + 1);
-    }, 100);
+    const isAttacker = myMark === combatState.attackerMark;
+    const isDefender = myMark === combatState.defenderMark;
 
-    // After 1.5 seconds, stop rolling and show results
-    setTimeout(() => {
-        clearInterval(rollInterval);
+    // Only allow clicking your own dice
+    if (side === 'attacker' && !isAttacker) return;
+    if (side === 'defender' && !isDefender) return;
 
-        // Stop both dice
-        attackerDice.classList.remove('rolling');
-        defenderDice.classList.remove('rolling');
-        attackerDice.textContent = getDiceFace(combat.attackerRoll);
-        defenderDice.textContent = getDiceFace(combat.defenderRoll);
+    // Don't allow double-clicking
+    if (side === 'attacker' && combatState.attackerRolled) return;
+    if (side === 'defender' && combatState.defenderRolled) return;
 
-        // Show roll values
-        attackerResult.textContent = `Rolled ${combat.attackerRoll}`;
-        defenderResult.textContent = `Rolled ${combat.defenderRoll}`;
+    // Send roll to server
+    ws.send(JSON.stringify({ type: 'roll' }));
+}
 
-        // After a beat, show winner and damage
+// Handle when server confirms a player rolled
+function handleCombatRolled(combat) {
+    if (!combatState) return;
+
+    const attackerDice = document.getElementById('attacker-dice');
+    const defenderDice = document.getElementById('defender-dice');
+    const attackerResult = document.getElementById('attacker-result');
+    const defenderResult = document.getElementById('defender-result');
+
+    const isDefender = myMark === combatState.defenderMark;
+
+    // Check if attacker just rolled
+    if (combat.attackerRolled && !combatState.attackerRolled) {
+        combatState.attackerRolled = true;
+        combatState.attackerRollValue = combat.attackerRoll; // Store the roll value
+        attackerDice.classList.remove('clickable', 'waiting');
+        attackerDice.classList.add('rolling');
+        attackerResult.textContent = 'Rolling...';
+
+        // Start rolling animation
+        combatState.attackerInterval = setInterval(() => {
+            attackerDice.textContent = getDiceFace(Math.floor(Math.random() * 6) + 1);
+        }, 100);
+
+        // After 1 second, stop and show the result
         setTimeout(() => {
-            if (combat.winner === 'attacker') {
-                // Attacker won
-                attackerResult.textContent = `Rolled ${combat.attackerRoll} - WINS!`;
-                attackerResult.className = 'combat-result hit';
-                defenderResult.textContent = `Rolled ${combat.defenderRoll} - loses`;
-                defenderResult.className = 'combat-result miss';
-
-                // Show damage on defender
-                setTimeout(() => {
-                    defenderDamage.textContent = `-${combat.damage}`;
-                    defenderDamage.className = 'damage-number show';
-                }, 300);
-            } else {
-                // Defender won
-                defenderResult.textContent = `Rolled ${combat.defenderRoll} - WINS!`;
-                defenderResult.className = 'combat-result hit';
-                attackerResult.textContent = `Rolled ${combat.attackerRoll} - loses`;
-                attackerResult.className = 'combat-result miss';
-
-                // Show damage on attacker
-                setTimeout(() => {
-                    attackerDamage.textContent = `-${combat.damage}`;
-                    attackerDamage.className = 'damage-number show';
-                }, 300);
+            if (combatState && combatState.attackerInterval) {
+                clearInterval(combatState.attackerInterval);
+                combatState.attackerInterval = null;
             }
+            attackerDice.classList.remove('rolling');
+            attackerDice.textContent = getDiceFace(combat.attackerRoll);
+            attackerResult.textContent = `Rolled ${combat.attackerRoll}!`;
 
-            // After showing results, hide overlay
+            // Now defender can roll!
+            defenderDice.classList.remove('waiting');
+            if (isDefender) {
+                defenderDice.classList.add('clickable');
+                defenderResult.textContent = `Beat ${combat.attackerRoll} to win! Click to roll!`;
+            } else {
+                defenderDice.classList.add('waiting');
+                defenderResult.textContent = 'Waiting...';
+            }
+        }, 1000);
+    }
+
+    // Check if defender just rolled
+    if (combat.defenderRolled && !combatState.defenderRolled) {
+        combatState.defenderRolled = true;
+        defenderDice.classList.remove('clickable', 'waiting');
+        defenderDice.classList.add('rolling');
+        defenderResult.textContent = 'Rolling...';
+
+        // Start rolling animation
+        combatState.defenderInterval = setInterval(() => {
+            defenderDice.textContent = getDiceFace(Math.floor(Math.random() * 6) + 1);
+        }, 100);
+    }
+}
+
+// Show final combat result after both rolled
+function showCombatResult(combat) {
+    const attackerDice = document.getElementById('attacker-dice');
+    const defenderDice = document.getElementById('defender-dice');
+    const attackerResult = document.getElementById('attacker-result');
+    const defenderResult = document.getElementById('defender-result');
+    const attackerDamage = document.getElementById('attacker-damage');
+    const defenderDamage = document.getElementById('defender-damage');
+
+    // Clear any rolling intervals
+    if (combatState) {
+        if (combatState.attackerInterval) clearInterval(combatState.attackerInterval);
+        if (combatState.defenderInterval) clearInterval(combatState.defenderInterval);
+    }
+
+    // Stop rolling animations
+    attackerDice.classList.remove('rolling', 'clickable', 'waiting');
+    defenderDice.classList.remove('rolling', 'clickable', 'waiting');
+
+    // Show final dice values
+    attackerDice.textContent = getDiceFace(combat.attackerRoll);
+    defenderDice.textContent = getDiceFace(combat.defenderRoll);
+
+    // Show roll values
+    attackerResult.textContent = `Rolled ${combat.attackerRoll}`;
+    defenderResult.textContent = `Rolled ${combat.defenderRoll}`;
+
+    // After a beat, show winner and damage
+    setTimeout(() => {
+        if (combat.winner === 'attacker') {
+            attackerResult.textContent = `Rolled ${combat.attackerRoll} - WINS!`;
+            attackerResult.className = 'combat-result hit';
+            defenderResult.textContent = `Rolled ${combat.defenderRoll} - loses`;
+            defenderResult.className = 'combat-result miss';
+
             setTimeout(() => {
-                hideCombatOverlay();
-            }, 2500);
-        }, 800);
-    }, 1500);
+                defenderDamage.textContent = `-${combat.damage}`;
+                defenderDamage.className = 'damage-number show';
+            }, 300);
+        } else {
+            defenderResult.textContent = `Rolled ${combat.defenderRoll} - WINS!`;
+            defenderResult.className = 'combat-result hit';
+            attackerResult.textContent = `Rolled ${combat.attackerRoll} - loses`;
+            attackerResult.className = 'combat-result miss';
+
+            setTimeout(() => {
+                attackerDamage.textContent = `-${combat.damage}`;
+                attackerDamage.className = 'damage-number show';
+            }, 300);
+        }
+
+        // After showing results, hide overlay
+        setTimeout(() => {
+            hideCombatOverlay();
+        }, 2500);
+    }, 800);
 }
 
 function hideCombatOverlay() {
     const overlay = document.getElementById('combat-overlay');
     overlay.classList.remove('active');
+
+    // Clear combat state
+    combatState = null;
 
     // Apply the pending game state
     if (pendingGameState) {

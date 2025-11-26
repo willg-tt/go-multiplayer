@@ -237,9 +237,27 @@
         .dice {
             display: inline-block;
             transition: transform 0.1s;
+            user-select: none;
+        }
+        .dice.clickable {
+            cursor: pointer;
+            animation: pulse-dice 0.8s ease-in-out infinite;
+            filter: drop-shadow(0 0 20px #ffcc00);
+        }
+        .dice.clickable:hover {
+            transform: scale(1.1);
+            filter: drop-shadow(0 0 30px #ffcc00);
+        }
+        .dice.waiting {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
         .dice.rolling {
             animation: roll 0.1s linear infinite;
+        }
+        @keyframes pulse-dice {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
         }
         @keyframes roll {
             0% { transform: rotate(0deg); }
@@ -374,7 +392,7 @@
             <div class="combatant" id="attacker-side">
                 <div class="combatant-label" id="attacker-label">X</div>
                 <div class="dice-container">
-                    <span class="dice" id="attacker-dice">⚀</span>
+                    <span class="dice" id="attacker-dice" onclick="handleDiceClick('attacker')">⚀</span>
                 </div>
                 <div class="combat-result" id="attacker-result"></div>
                 <div class="damage-number" id="attacker-damage"></div>
@@ -383,7 +401,7 @@
             <div class="combatant" id="defender-side">
                 <div class="combatant-label" id="defender-label">O</div>
                 <div class="dice-container">
-                    <span class="dice" id="defender-dice">⚀</span>
+                    <span class="dice" id="defender-dice" onclick="handleDiceClick('defender')">⚀</span>
                 </div>
                 <div class="combat-result" id="defender-result"></div>
                 <div class="damage-number" id="defender-damage"></div>

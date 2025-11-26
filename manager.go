@@ -47,6 +47,9 @@ func startGameManager() {
 		case ActionAttack:
 			handleAttackAction(action.Client, action.X, action.Y)
 
+		case ActionRoll:
+			handleRollAction(action.Client)
+
 		case ActionReset:
 			handleResetAction()
 
@@ -229,6 +232,12 @@ func handleAttackAction(client *Client, x, y int) {
 		return
 	}
 
+	// Can't start new combat if one is pending
+	if pendingCombat != nil {
+		sendJSON(client.Conn, ServerMessage{Type: "error", Error: "Combat already in progress"})
+		return
+	}
+
 	// Get attacker and defender units and marks
 	var attacker, defender *Unit
 	var attackerMark, defenderMark string
@@ -258,41 +267,130 @@ func handleAttackAction(client *Client, x, y int) {
 		return
 	}
 
-	// Combat resolution - Risk style!
-	// Both roll, higher wins, attacker wins ties
-	// Damage = difference between rolls (minimum 1)
+	// Pre-roll dice (server determines outcome now, but don't reveal yet)
 	attackRoll := rand.Intn(6) + 1 // 1-6
 	defendRoll := rand.Intn(6) + 1 // 1-6
 
-	// Build combat result for animation
+	// Build combat result (rolls hidden from clients until they click)
 	combat := &CombatResult{
-		AttackerMark: attackerMark,
-		DefenderMark: defenderMark,
-		AttackerRoll: attackRoll,
-		DefenderRoll: defendRoll,
+		AttackerMark:   attackerMark,
+		DefenderMark:   defenderMark,
+		AttackerRoll:   attackRoll,
+		DefenderRoll:   defendRoll,
+		AttackerRolled: false,
+		DefenderRolled: false,
 	}
 
-	// Attacker wins on tie (that's the advantage!)
+	// Calculate outcome (but don't apply yet)
 	if attackRoll >= defendRoll {
-		// Attacker wins - defender takes damage
 		combat.Winner = "attacker"
 		combat.LoserMark = defenderMark
 		combat.Damage = attackRoll - defendRoll
 		if combat.Damage < 1 {
-			combat.Damage = 1 // Minimum 1 damage on win
-		}
-		defender.HP -= combat.Damage
-		if defender.HP < 0 {
-			defender.HP = 0
+			combat.Damage = 1
 		}
 	} else {
-		// Defender wins - attacker takes damage
 		combat.Winner = "defender"
 		combat.LoserMark = attackerMark
 		combat.Damage = defendRoll - attackRoll
 		if combat.Damage < 1 {
 			combat.Damage = 1
 		}
+	}
+
+	// Store pending combat
+	pendingCombat = &PendingCombat{
+		Combat:   combat,
+		Attacker: attacker,
+		Defender: defender,
+	}
+
+	// Broadcast combat start (without revealing rolls)
+	broadcastToAll(ServerMessage{
+		Type: "combat_start",
+		Combat: &CombatResult{
+			AttackerMark:   attackerMark,
+			DefenderMark:   defenderMark,
+			AttackerRolled: false,
+			DefenderRolled: false,
+		},
+	})
+}
+
+func handleRollAction(client *Client) {
+	// Must have pending combat
+	if pendingCombat == nil {
+		sendJSON(client.Conn, ServerMessage{Type: "error", Error: "No combat in progress"})
+		return
+	}
+
+	combat := pendingCombat.Combat
+
+	// Check if this player is part of the combat
+	isAttacker := client.Role == combat.AttackerMark
+	isDefender := client.Role == combat.DefenderMark
+
+	if !isAttacker && !isDefender {
+		sendJSON(client.Conn, ServerMessage{Type: "error", Error: "You are not in this combat"})
+		return
+	}
+
+	// Mark this player as having rolled
+	if isAttacker {
+		if combat.AttackerRolled {
+			return // Already rolled
+		}
+		combat.AttackerRolled = true
+	} else {
+		// Defender can only roll after attacker
+		if !combat.AttackerRolled {
+			sendJSON(client.Conn, ServerMessage{Type: "error", Error: "Wait for attacker to roll first"})
+			return
+		}
+		if combat.DefenderRolled {
+			return // Already rolled
+		}
+		combat.DefenderRolled = true
+	}
+
+	// Broadcast that someone rolled
+	// Include attacker's roll if they've rolled (so defender knows what to beat)
+	rolledMsg := &CombatResult{
+		AttackerMark:   combat.AttackerMark,
+		DefenderMark:   combat.DefenderMark,
+		AttackerRolled: combat.AttackerRolled,
+		DefenderRolled: combat.DefenderRolled,
+	}
+	if combat.AttackerRolled {
+		rolledMsg.AttackerRoll = combat.AttackerRoll
+	}
+	broadcastToAll(ServerMessage{
+		Type:   "combat_rolled",
+		Combat: rolledMsg,
+	})
+
+	// If both have rolled, resolve combat
+	if combat.AttackerRolled && combat.DefenderRolled {
+		resolveCombat()
+	}
+}
+
+func resolveCombat() {
+	if pendingCombat == nil {
+		return
+	}
+
+	combat := pendingCombat.Combat
+	attacker := pendingCombat.Attacker
+	defender := pendingCombat.Defender
+
+	// Apply damage
+	if combat.Winner == "attacker" {
+		defender.HP -= combat.Damage
+		if defender.HP < 0 {
+			defender.HP = 0
+		}
+	} else {
 		attacker.HP -= combat.Damage
 		if attacker.HP < 0 {
 			attacker.HP = 0
@@ -320,7 +418,10 @@ func handleAttackAction(client *Client, x, y int) {
 		}
 	}
 
-	// Broadcast combat result and new state to everyone
+	// Clear pending combat
+	pendingCombat = nil
+
+	// Broadcast final combat result and new state
 	broadcastToAll(ServerMessage{Type: "combat", Game: game, Combat: combat})
 }
 
