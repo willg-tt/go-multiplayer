@@ -427,6 +427,15 @@ function renderBoard() {
                 cell.textContent = value;
                 cell.classList.add(value.toLowerCase());
 
+                // Highlight if this is the player's unit
+                if (value === myMark) {
+                    cell.classList.add('my-unit');
+                    // Add turn indicator if it's your turn
+                    if (gameState.turn === myMark && !gameState.winner) {
+                        cell.classList.add('my-turn');
+                    }
+                }
+
                 // Add HP bar for units
                 const unit = value === 'X' ? gameState.unitX : gameState.unitO;
                 if (unit && unit.hp > 0) {
