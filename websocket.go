@@ -94,6 +94,13 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		case "reset":
 			mutex.Lock()
 			game.reset()
+			// Tell players their new marks
+			if game.PlayerX != nil {
+				sendJSON(game.PlayerX.Conn, ServerMessage{Type: "assigned", Mark: "X"})
+			}
+			if game.PlayerO != nil {
+				sendJSON(game.PlayerO.Conn, ServerMessage{Type: "assigned", Mark: "O"})
+			}
 			mutex.Unlock()
 			broadcastState()
 		}

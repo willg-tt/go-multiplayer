@@ -82,9 +82,16 @@ func (g *Game) checkWinner() {
 	g.Winner = "draw"
 }
 
-// reset clears the game for a new round
+// reset clears the game for a new round and swaps who goes first
 func (g *Game) reset() {
 	g.Board = [3][3]string{}
 	g.Turn = "X"
 	g.Winner = ""
+
+	// Swap players - whoever was O is now X (goes first)
+	if g.PlayerX != nil && g.PlayerO != nil {
+		g.PlayerX, g.PlayerO = g.PlayerO, g.PlayerX
+		g.PlayerX.Mark = "X"
+		g.PlayerO.Mark = "O"
+	}
 }
