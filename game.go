@@ -19,10 +19,11 @@ type Player struct {
 
 // ClientMessage is what the browser sends to us
 type ClientMessage struct {
-	Type    string `json:"type"`    // "move", "chat", "reset"
+	Type    string `json:"type"`    // "move", "chat", "reset", "setName"
 	X       int    `json:"x"`       // 0, 1, or 2
 	Y       int    `json:"y"`       // 0, 1, or 2
 	Message string `json:"message"` // Chat message text
+	Name    string `json:"name"`    // Display name
 }
 
 // ServerMessage is what we send to the browser
@@ -31,7 +32,8 @@ type ServerMessage struct {
 	Game    *Game  `json:"game,omitempty"`    // Current game state
 	Mark    string `json:"mark,omitempty"`    // "X", "O", or "spectator"
 	Error   string `json:"error,omitempty"`
-	From    string `json:"from,omitempty"`    // Who sent the chat
+	From    string `json:"from,omitempty"`    // Role: "X", "O", "spectator", "system"
+	Name    string `json:"name,omitempty"`    // Display name (optional)
 	Message string `json:"message,omitempty"` // Chat message text
 }
 

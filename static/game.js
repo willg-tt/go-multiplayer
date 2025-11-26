@@ -39,18 +39,25 @@ function handleMessage(msg) {
             break;
 
         case 'chat':
-            addChatMessage(msg.from, msg.message);
+            addChatMessage(msg.from, msg.name, msg.message);
             break;
     }
 }
 
-function addChatMessage(from, message) {
+function addChatMessage(from, name, message) {
     const chatMessages = document.getElementById('chat-messages');
     const msgEl = document.createElement('div');
     msgEl.className = 'chat-message';
-    msgEl.innerHTML = `<span class="from-${from.toLowerCase()}">${from}:</span> ${escapeHtml(message)}`;
+
+    // Build display name: "Name (Role)" or just "Role"
+    let displayName = from;
+    if (name) {
+        displayName = `${name} (${from})`;
+    }
+
+    msgEl.innerHTML = `<span class="from-${from.toLowerCase()}">${escapeHtml(displayName)}:</span> ${escapeHtml(message)}`;
     chatMessages.appendChild(msgEl);
-    chatMessages.scrollTop = chatMessages.scrollHeight; // Auto-scroll to bottom
+    chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
 function escapeHtml(text) {
@@ -124,10 +131,22 @@ function resetGame() {
     ws.send(JSON.stringify({ type: 'reset' }));
 }
 
+function setName() {
+    const input = document.getElementById('name-input');
+    const name = input.value.trim();
+    if (name) {
+        ws.send(JSON.stringify({ type: 'setName', name: name }));
+    }
+}
+
 // Set up event listeners and start connection
 document.getElementById('reset-btn').onclick = resetGame;
 document.getElementById('chat-send').onclick = sendChat;
 document.getElementById('chat-input').addEventListener('keypress', function(e) {
     if (e.key === 'Enter') sendChat();
+});
+document.getElementById('name-btn').onclick = setName;
+document.getElementById('name-input').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') setName();
 });
 connect();

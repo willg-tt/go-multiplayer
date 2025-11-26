@@ -59,6 +59,8 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			actions <- Action{Type: ActionReset, Client: client}
 		case ActionChat:
 			actions <- Action{Type: ActionChat, Client: client, Text: msg.Message}
+		case ActionSetName:
+			actions <- Action{Type: ActionSetName, Client: client, Name: msg.Name}
 		}
 	}
 }

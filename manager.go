@@ -6,6 +6,7 @@ import "github.com/gorilla/websocket"
 type Client struct {
 	Conn *websocket.Conn
 	Role string // "X", "O", or "spectator"
+	Name string // Player's chosen name
 }
 
 // Action represents any event sent to the game manager
@@ -15,6 +16,7 @@ type Action struct {
 	X      int    // For moves
 	Y      int    // For moves
 	Text   string // For chat
+	Name   string // For setName
 }
 
 // Channels for communication
@@ -43,6 +45,9 @@ func startGameManager() {
 
 		case ActionChat:
 			handleChatAction(action.Client, action.Text)
+
+		case ActionSetName:
+			handleSetName(action.Client, action.Name)
 		}
 	}
 }
@@ -169,11 +174,23 @@ func handleResetAction() {
 }
 
 func handleChatAction(client *Client, text string) {
-	// Everyone can chat
 	broadcastToAll(ServerMessage{
 		Type:    "chat",
 		From:    client.Role,
+		Name:    client.Name,
 		Message: text,
+	})
+}
+
+func handleSetName(client *Client, name string) {
+	client.Name = name
+
+	// Announce name change
+	broadcastToAll(ServerMessage{
+		Type:    "chat",
+		From:    "system",
+		Name:    "",
+		Message: client.Role + " is now known as " + name,
 	})
 }
 

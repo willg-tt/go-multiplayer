@@ -4,9 +4,10 @@ package main
 type ActionType string
 
 const (
-	ActionJoin  ActionType = "join"
-	ActionLeave ActionType = "leave"
-	ActionMove  ActionType = "move"
-	ActionReset ActionType = "reset"
-	ActionChat  ActionType = "chat"
+	ActionJoin    ActionType = "join"
+	ActionLeave   ActionType = "leave"
+	ActionMove    ActionType = "move"
+	ActionReset   ActionType = "reset"
+	ActionChat    ActionType = "chat"
+	ActionSetName ActionType = "setName"
 )

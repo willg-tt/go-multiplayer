@@ -100,6 +100,31 @@
             color: #00d9ff;
             font-weight: bold;
         }
+        .chat-message .from-spectator {
+            color: #888;
+            font-weight: bold;
+        }
+        .chat-message .from-system {
+            color: #666;
+            font-style: italic;
+        }
+        .name-input {
+            margin-bottom: 15px;
+        }
+        .name-input input {
+            padding: 8px 12px;
+            border: 2px solid #0f3460;
+            border-radius: 5px;
+            background: #16213e;
+            color: white;
+            font-size: 14px;
+            width: 150px;
+        }
+        .name-input button {
+            display: inline-block;
+            padding: 8px 12px;
+            margin-left: 5px;
+        }
         .chat-input {
             display: flex;
             gap: 5px;
@@ -127,6 +152,10 @@
     <div class="container">
         <h1>Noughts and Crosses</h1>
         <div id="player-info" class="player-info"></div>
+        <div class="name-input">
+            <input type="text" id="name-input" placeholder="Enter your name" />
+            <button id="name-btn">Set Name</button>
+        </div>
         <div id="status">Connecting...</div>
         <div class="board" id="board"></div>
         <button id="reset-btn">Play Again</button>
