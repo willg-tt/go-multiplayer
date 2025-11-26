@@ -62,7 +62,16 @@ func startGameManager() {
 	}
 }
 
+const MaxClients = 10
+
 func handleJoin(client *Client) {
+	// Check connection limit
+	if len(clients) >= MaxClients {
+		sendJSON(client.Conn, ServerMessage{Type: "error", Error: "Server full (max 10 players)"})
+		client.Conn.Close()
+		return
+	}
+
 	// Assign role: first player is X, second is O, rest are spectators
 	if game.PlayerX == nil {
 		client.Role = "X"
@@ -482,6 +491,14 @@ func resolveCombat() {
 }
 
 func handleChatAction(client *Client, text string) {
+	// Limit message length
+	if len(text) > 200 {
+		text = text[:200]
+	}
+	if len(text) == 0 {
+		return
+	}
+
 	broadcastToAll(ServerMessage{
 		Type:    "chat",
 		From:    client.Role,
@@ -491,6 +508,14 @@ func handleChatAction(client *Client, text string) {
 }
 
 func handleSetName(client *Client, name string) {
+	// Limit name length
+	if len(name) > 20 {
+		name = name[:20]
+	}
+	if len(name) == 0 {
+		return
+	}
+
 	client.Name = name
 
 	// Announce name change
