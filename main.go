@@ -6,8 +6,8 @@ import (
 )
 
 func main() {
-	// Start the chat broadcaster in its own goroutine
-	go startBroadcaster()
+	// Start the game manager in its own goroutine
+	go startGameManager()
 
 	// Serve static files from the "static" directory
 	fs := http.FileServer(http.Dir("static"))

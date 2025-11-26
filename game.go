@@ -1,10 +1,6 @@
 package main
 
-import (
-	"sync"
-
-	"github.com/gorilla/websocket"
-)
+import "github.com/gorilla/websocket"
 
 // Game represents the tic-tac-toe game state
 type Game struct {
@@ -17,14 +13,13 @@ type Game struct {
 
 // Player represents a connected player
 type Player struct {
-	ID   string
 	Conn *websocket.Conn
 	Mark string // "X" or "O"
 }
 
 // ClientMessage is what the browser sends to us
 type ClientMessage struct {
-	Type    string `json:"type"`    // "move", "chat"
+	Type    string `json:"type"`    // "move", "chat", "reset"
 	X       int    `json:"x"`       // 0, 1, or 2
 	Y       int    `json:"y"`       // 0, 1, or 2
 	Message string `json:"message"` // Chat message text
@@ -34,25 +29,14 @@ type ClientMessage struct {
 type ServerMessage struct {
 	Type    string `json:"type"`              // "state", "error", "assigned", "chat"
 	Game    *Game  `json:"game,omitempty"`    // Current game state
-	Mark    string `json:"mark,omitempty"`    // "X" or "O" (when assigned)
+	Mark    string `json:"mark,omitempty"`    // "X", "O", or "spectator"
 	Error   string `json:"error,omitempty"`
-	From    string `json:"from,omitempty"`    // Who sent the chat ("X" or "O")
+	From    string `json:"from,omitempty"`    // Who sent the chat
 	Message string `json:"message,omitempty"` // Chat message text
 }
 
-// Broadcast is sent through the channel to all players
-type Broadcast struct {
-	Message ServerMessage
-}
-
-// Channel for broadcasting messages to all players
-var broadcast = make(chan Broadcast)
-
-// Global game state (we'll only have one game for simplicity)
-var (
-	game  = &Game{Turn: "X"}  // X always goes first
-	mutex = &sync.Mutex{}     // Protects game from concurrent access
-)
+// Global game state - only touched by game manager goroutine, no mutex needed!
+var game = &Game{Turn: "X"}
 
 // checkWinner checks if someone won or if it's a draw
 func (g *Game) checkWinner() {
@@ -91,18 +75,4 @@ func (g *Game) checkWinner() {
 		}
 	}
 	g.Winner = "draw"
-}
-
-// reset clears the game for a new round and swaps who goes first
-func (g *Game) reset() {
-	g.Board = [3][3]string{}
-	g.Turn = "X"
-	g.Winner = ""
-
-	// Swap players - whoever was O is now X (goes first)
-	if g.PlayerX != nil && g.PlayerO != nil {
-		g.PlayerX, g.PlayerO = g.PlayerO, g.PlayerX
-		g.PlayerX.Mark = "X"
-		g.PlayerO.Mark = "O"
-	}
 }

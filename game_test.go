@@ -82,26 +82,4 @@ func TestCheckWinner_NoWinnerYet(t *testing.T) {
 	}
 }
 
-func TestReset(t *testing.T) {
-	g := &Game{
-		Board: [3][3]string{
-			{"X", "O", "X"},
-			{"X", "O", "O"},
-			{"O", "X", "X"},
-		},
-		Turn:   "O",
-		Winner: "draw",
-	}
-
-	g.reset()
-
-	if g.Turn != "X" {
-		t.Errorf("expected turn X, got %s", g.Turn)
-	}
-	if g.Winner != "" {
-		t.Errorf("expected no winner, got %s", g.Winner)
-	}
-	if g.Board[0][0] != "" {
-		t.Errorf("expected empty board, got %v", g.Board)
-	}
-}
+// Note: Reset logic moved to manager.go and tested via integration
