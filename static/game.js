@@ -94,10 +94,30 @@ function showCombatStart(combat) {
         defenderInterval: null
     };
 
-    // Set up labels
-    attackerLabel.textContent = combat.attackerMark + ' (attacker)';
+    // Set up labels - show "YOU" if it's the player
+    const isAttacker = myMark === combat.attackerMark;
+    const isDefender = myMark === combat.defenderMark;
+
+    const attackerSide = document.getElementById('attacker-side');
+    const defenderSide = document.getElementById('defender-side');
+
+    attackerSide.classList.remove('is-you');
+    defenderSide.classList.remove('is-you');
+
+    if (isAttacker) {
+        attackerLabel.textContent = 'YOU (attacker)';
+        attackerSide.classList.add('is-you');
+    } else {
+        attackerLabel.textContent = combat.attackerMark + ' (attacker)';
+    }
     attackerLabel.className = 'combatant-label ' + combat.attackerMark.toLowerCase();
-    defenderLabel.textContent = combat.defenderMark + ' (defender)';
+
+    if (isDefender) {
+        defenderLabel.textContent = 'YOU (defender)';
+        defenderSide.classList.add('is-you');
+    } else {
+        defenderLabel.textContent = combat.defenderMark + ' (defender)';
+    }
     defenderLabel.className = 'combatant-label ' + combat.defenderMark.toLowerCase();
 
     // Reset state
@@ -113,9 +133,6 @@ function showCombatStart(combat) {
     defenderDamage.className = 'damage-number';
 
     // Attacker always rolls first
-    const isAttacker = myMark === combat.attackerMark;
-    const isDefender = myMark === combat.defenderMark;
-
     attackerDice.classList.remove('clickable', 'rolling', 'waiting');
     defenderDice.classList.remove('clickable', 'rolling', 'waiting');
 
