@@ -1,0 +1,12 @@
+package main
+
+// ActionType represents the type of action sent to the game manager
+type ActionType string
+
+const (
+	ActionJoin  ActionType = "join"
+	ActionLeave ActionType = "leave"
+	ActionMove  ActionType = "move"
+	ActionReset ActionType = "reset"
+	ActionChat  ActionType = "chat"
+)

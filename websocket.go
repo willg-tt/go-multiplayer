@@ -31,14 +31,14 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	// Create client and tell game manager they joined
 	client := &Client{Conn: conn}
-	actions <- Action{Type: "join", Client: client}
+	actions <- Action{Type: ActionJoin, Client: client}
 
 	// Read messages and forward to game manager
 	for {
 		_, messageBytes, err := conn.ReadMessage()
 		if err != nil {
 			fmt.Println("Client disconnected:", client.Role)
-			actions <- Action{Type: "leave", Client: client}
+			actions <- Action{Type: ActionLeave, Client: client}
 			break
 		}
 
@@ -52,13 +52,13 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("Received from %s: %+v\n", client.Role, msg)
 
 		// Forward to game manager via channel
-		switch msg.Type {
-		case "move":
-			actions <- Action{Type: "move", Client: client, X: msg.X, Y: msg.Y}
-		case "reset":
-			actions <- Action{Type: "reset", Client: client}
-		case "chat":
-			actions <- Action{Type: "chat", Client: client, Text: msg.Message}
+		switch ActionType(msg.Type) {
+		case ActionMove:
+			actions <- Action{Type: ActionMove, Client: client, X: msg.X, Y: msg.Y}
+		case ActionReset:
+			actions <- Action{Type: ActionReset, Client: client}
+		case ActionChat:
+			actions <- Action{Type: ActionChat, Client: client, Text: msg.Message}
 		}
 	}
 }

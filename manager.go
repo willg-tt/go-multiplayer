@@ -10,7 +10,7 @@ type Client struct {
 
 // Action represents any event sent to the game manager
 type Action struct {
-	Type   string // "join", "leave", "move", "reset", "chat"
+	Type   ActionType
 	Client *Client
 	X      int    // For moves
 	Y      int    // For moves
@@ -29,19 +29,19 @@ func startGameManager() {
 		action := <-actions // Wait for an action
 
 		switch action.Type {
-		case "join":
+		case ActionJoin:
 			handleJoin(action.Client)
 
-		case "leave":
+		case ActionLeave:
 			handleLeave(action.Client)
 
-		case "move":
+		case ActionMove:
 			handleMoveAction(action.Client, action.X, action.Y)
 
-		case "reset":
+		case ActionReset:
 			handleResetAction()
 
-		case "chat":
+		case ActionChat:
 			handleChatAction(action.Client, action.Text)
 		}
 	}
