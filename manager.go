@@ -25,8 +25,8 @@ type Action struct {
 
 // Channels for communication
 var (
-	actions   = make(chan Action)    // All actions go here
-	clients   = make(map[*Client]bool) // All connected clients
+	actions = make(chan Action)      // All actions go here
+	clients = make(map[*Client]bool) // All connected clients
 )
 
 // startGameManager runs the single goroutine that owns all game state
@@ -199,16 +199,21 @@ func abs(n int) int {
 	return n
 }
 
-func handleResetAction() {
+// resetGame clears the board and reinitializes units
+func resetGame() {
 	game.Board = [BoardSize][BoardSize]string{}
 	game.Turn = "X"
 	game.Winner = ""
-	game.PowerUps = nil // Clear power-ups
+	game.PowerUps = nil
+	pendingCombat = nil
 	game.initializeUnits()
+}
 
-	// Swap players
+func handleResetAction() {
+	resetGame()
+
+	// Swap players on manual reset
 	if game.PlayerX != nil && game.PlayerO != nil {
-		// Find the clients and swap their roles
 		for client := range clients {
 			if client.Role == "X" {
 				client.Role = "O"
@@ -216,7 +221,6 @@ func handleResetAction() {
 				client.Role = "X"
 			}
 		}
-		// Swap the player pointers
 		game.PlayerX, game.PlayerO = game.PlayerO, game.PlayerX
 		game.PlayerX.Mark = "X"
 		game.PlayerO.Mark = "O"
@@ -536,8 +540,8 @@ func broadcastToAll(msg ServerMessage) {
 
 // maybeSpawnPowerUp has a chance to spawn a power-up on an empty square
 func maybeSpawnPowerUp() {
-	// 30% chance to spawn a power-up each turn
-	if rand.Intn(100) >= 30 {
+	// 35% chance to spawn a power-up each turn
+	if rand.Intn(100) >= 35 {
 		return
 	}
 

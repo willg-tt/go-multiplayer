@@ -300,10 +300,10 @@ function showCombatResult(combat) {
                 }, 300);
             }
 
-            // After showing results, hide overlay (longer delay)
+            // After showing results, hide overlay
             setTimeout(() => {
                 hideCombatOverlay();
-            }, 4000);
+            }, 3500);
         }, 800);
     }, 1000); // Let defender's dice spin for 1 second
 }
