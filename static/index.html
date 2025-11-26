@@ -87,6 +87,36 @@
             0%, 100% { transform: translateX(-50%) translateY(0); }
             50% { transform: translateX(-50%) translateY(-4px); }
         }
+        /* Power-up styles */
+        .cell.has-power-up {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .power-up {
+            position: absolute;
+            font-size: 28px;
+            animation: float 1.5s ease-in-out infinite;
+        }
+        .power-up.hp {
+            filter: drop-shadow(0 0 8px #ef4444);
+        }
+        .power-up.attack {
+            filter: drop-shadow(0 0 8px #ffcc00);
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+        /* Attack boost indicator on unit */
+        .cell.has-attack-boost {
+            box-shadow: 0 0 15px #ffcc00, inset 0 0 10px rgba(255, 204, 0, 0.4);
+        }
+        .boost-icon {
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            font-size: 14px;
+            filter: drop-shadow(0 0 4px #ffcc00);
+        }
         .hp-bar {
             position: absolute;
             bottom: 2px;

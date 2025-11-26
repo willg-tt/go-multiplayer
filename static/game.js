@@ -57,6 +57,12 @@ function handleMessage(msg) {
             showCombatResult(msg.combat);
             break;
 
+        case 'combat_boosted':
+            // Attack boost used - instant damage, no dice rolling
+            pendingGameState = msg.game;
+            showBoostedAttack(msg.combat);
+            break;
+
         case 'error':
             console.error('Error:', msg.error);
             break;
@@ -319,6 +325,80 @@ function hideCombatOverlay() {
     }
 }
 
+// Show boosted attack - instant damage, no dice rolling
+function showBoostedAttack(combat) {
+    const overlay = document.getElementById('combat-overlay');
+    const attackerLabel = document.getElementById('attacker-label');
+    const defenderLabel = document.getElementById('defender-label');
+    const attackerDice = document.getElementById('attacker-dice');
+    const defenderDice = document.getElementById('defender-dice');
+    const attackerResult = document.getElementById('attacker-result');
+    const defenderResult = document.getElementById('defender-result');
+    const attackerDamage = document.getElementById('attacker-damage');
+    const defenderDamage = document.getElementById('defender-damage');
+    const combatTitle = document.querySelector('.combat-title');
+
+    const isAttacker = myMark === combat.attackerMark;
+    const attackerSide = document.getElementById('attacker-side');
+    const defenderSide = document.getElementById('defender-side');
+
+    // Set up labels
+    attackerSide.classList.remove('is-you');
+    defenderSide.classList.remove('is-you');
+
+    if (isAttacker) {
+        attackerLabel.textContent = 'YOU (attacker)';
+        attackerSide.classList.add('is-you');
+    } else {
+        attackerLabel.textContent = combat.attackerMark + ' (attacker)';
+    }
+    attackerLabel.className = 'combatant-label ' + combat.attackerMark.toLowerCase();
+
+    if (myMark === combat.defenderMark) {
+        defenderLabel.textContent = 'YOU (defender)';
+        defenderSide.classList.add('is-you');
+    } else {
+        defenderLabel.textContent = combat.defenderMark + ' (defender)';
+    }
+    defenderLabel.className = 'combatant-label ' + combat.defenderMark.toLowerCase();
+
+    // Change title to show boosted attack
+    combatTitle.textContent = 'BOOSTED ATTACK!';
+    combatTitle.style.color = '#ffcc00';
+
+    // Show instant result - attacker shows lightning, defender shows X
+    attackerDice.textContent = '⚡';
+    attackerDice.classList.remove('rolling', 'clickable', 'waiting');
+    defenderDice.textContent = '💥';
+    defenderDice.classList.remove('rolling', 'clickable', 'waiting');
+
+    attackerResult.textContent = 'POWER ATTACK!';
+    attackerResult.className = 'combat-result hit';
+    defenderResult.textContent = 'No defense!';
+    defenderResult.className = 'combat-result miss';
+
+    attackerDamage.textContent = '';
+    attackerDamage.className = 'damage-number';
+    defenderDamage.textContent = '';
+    defenderDamage.className = 'damage-number';
+
+    // Show overlay
+    overlay.classList.add('active');
+
+    // Show damage after a moment
+    setTimeout(() => {
+        defenderDamage.textContent = `-${combat.damage}`;
+        defenderDamage.className = 'damage-number show';
+    }, 500);
+
+    // Hide after showing result
+    setTimeout(() => {
+        combatTitle.textContent = 'COMBAT!';
+        combatTitle.style.color = '';
+        hideCombatOverlay();
+    }, 3000);
+}
+
 function addChatMessage(from, name, message) {
     const chatMessages = document.getElementById('chat-messages');
     const msgEl = document.createElement('div');
@@ -462,6 +542,15 @@ function renderBoard() {
                     hpFill.style.width = `${hpPercent}%`;
                     hpBar.appendChild(hpFill);
                     cell.appendChild(hpBar);
+
+                    // Show attack boost indicator
+                    if (unit.attackBoost) {
+                        cell.classList.add('has-attack-boost');
+                        const boostIcon = document.createElement('span');
+                        boostIcon.className = 'boost-icon';
+                        boostIcon.textContent = '⚡';
+                        cell.appendChild(boostIcon);
+                    }
                 }
             }
 
@@ -476,6 +565,19 @@ function renderBoard() {
                     cell.classList.add('valid-move');
                 } else if (isValidAttack(x, y)) {
                     cell.classList.add('valid-attack');
+                }
+            }
+
+            // Check for power-up on this cell
+            if (gameState.powerUps) {
+                for (const powerUp of gameState.powerUps) {
+                    if (powerUp.x === x && powerUp.y === y) {
+                        const powerUpEl = document.createElement('span');
+                        powerUpEl.className = 'power-up ' + powerUp.type;
+                        powerUpEl.textContent = powerUp.type === 'hp' ? '❤️' : '⚡';
+                        cell.appendChild(powerUpEl);
+                        cell.classList.add('has-power-up');
+                    }
                 }
             }
 

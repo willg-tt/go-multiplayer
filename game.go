@@ -7,10 +7,18 @@ const MaxHP = 10
 
 // Unit represents a player's unit on the board
 type Unit struct {
-	X     int `json:"x"`
-	Y     int `json:"y"`
-	HP    int `json:"hp"`
-	MaxHP int `json:"maxHp"`
+	X           int  `json:"x"`
+	Y           int  `json:"y"`
+	HP          int  `json:"hp"`
+	MaxHP       int  `json:"maxHp"`
+	AttackBoost bool `json:"attackBoost"` // Next attack bypasses dice, deals 6 damage
+}
+
+// PowerUp represents a collectible on the board
+type PowerUp struct {
+	Type string `json:"type"` // "hp" or "attack"
+	X    int    `json:"x"`
+	Y    int    `json:"y"`
 }
 
 // CombatResult holds the details of a combat exchange for animation
@@ -35,13 +43,14 @@ type PendingCombat struct {
 
 // Game represents the Grid Wars game state
 type Game struct {
-	Board   [BoardSize][BoardSize]string `json:"board"`  // "", "X", or "O"
-	Turn    string                       `json:"turn"`   // "X" or "O"
-	Winner  string                       `json:"winner"` // "", "X", or "O"
-	PlayerX *Player                      `json:"-"`      // - means don't include in JSON
-	PlayerO *Player                      `json:"-"`
-	UnitX   *Unit                        `json:"unitX"`
-	UnitO   *Unit                        `json:"unitO"`
+	Board    [BoardSize][BoardSize]string `json:"board"`    // "", "X", or "O"
+	Turn     string                       `json:"turn"`     // "X" or "O"
+	Winner   string                       `json:"winner"`   // "", "X", or "O"
+	PlayerX  *Player                      `json:"-"`        // - means don't include in JSON
+	PlayerO  *Player                      `json:"-"`
+	UnitX    *Unit                        `json:"unitX"`
+	UnitO    *Unit                        `json:"unitO"`
+	PowerUps []PowerUp                    `json:"powerUps"` // Active power-ups on board
 }
 
 // Player represents a connected player

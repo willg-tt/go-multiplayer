@@ -165,12 +165,18 @@ func handleMoveAction(client *Client, x, y int) {
 	unit.Y = y
 	game.Board[y][x] = client.Role // Set new position
 
+	// Check if landed on a power-up
+	checkPowerUpCollection(unit, client.Role)
+
 	// Switch turns
 	if game.Turn == "X" {
 		game.Turn = "O"
 	} else {
 		game.Turn = "X"
 	}
+
+	// Maybe spawn a power-up for the next turn
+	maybeSpawnPowerUp()
 
 	// Broadcast to everyone
 	broadcastToAll(ServerMessage{Type: "state", Game: game})
@@ -188,6 +194,7 @@ func handleResetAction() {
 	game.Board = [BoardSize][BoardSize]string{}
 	game.Turn = "X"
 	game.Winner = ""
+	game.PowerUps = nil // Clear power-ups
 	game.initializeUnits()
 
 	// Swap players
@@ -267,7 +274,53 @@ func handleAttackAction(client *Client, x, y int) {
 		return
 	}
 
-	// Pre-roll dice (server determines outcome now, but don't reveal yet)
+	// Check if attacker has attack boost - instant 6 damage, no dice!
+	if attacker.AttackBoost {
+		attacker.AttackBoost = false // Consume the boost
+
+		// Build instant combat result
+		combat := &CombatResult{
+			AttackerMark: attackerMark,
+			DefenderMark: defenderMark,
+			AttackerRoll: 6, // Show as max roll
+			DefenderRoll: 0, // No defense
+			Winner:       "attacker",
+			LoserMark:    defenderMark,
+			Damage:       6,
+		}
+
+		// Apply damage immediately
+		defender.HP -= 6
+		if defender.HP < 0 {
+			defender.HP = 0
+		}
+
+		// Check for winner
+		game.checkWinner()
+
+		// If defender eliminated, remove from board
+		if defender.HP <= 0 {
+			game.Board[defender.Y][defender.X] = ""
+		}
+
+		// Switch turns (if game not over)
+		if game.Winner == "" {
+			if game.Turn == "X" {
+				game.Turn = "O"
+			} else {
+				game.Turn = "X"
+			}
+		}
+
+		// Maybe spawn power-up
+		maybeSpawnPowerUp()
+
+		// Broadcast boosted attack result
+		broadcastToAll(ServerMessage{Type: "combat_boosted", Game: game, Combat: combat})
+		return
+	}
+
+	// Normal combat - Pre-roll dice (server determines outcome now, but don't reveal yet)
 	attackRoll := rand.Intn(6) + 1 // 1-6
 	defendRoll := rand.Intn(6) + 1 // 1-6
 
@@ -421,6 +474,9 @@ func resolveCombat() {
 	// Clear pending combat
 	pendingCombat = nil
 
+	// Maybe spawn power-up
+	maybeSpawnPowerUp()
+
 	// Broadcast final combat result and new state
 	broadcastToAll(ServerMessage{Type: "combat", Game: game, Combat: combat})
 }
@@ -450,5 +506,88 @@ func handleSetName(client *Client, name string) {
 func broadcastToAll(msg ServerMessage) {
 	for client := range clients {
 		sendJSON(client.Conn, msg)
+	}
+}
+
+// maybeSpawnPowerUp has a chance to spawn a power-up on an empty square
+func maybeSpawnPowerUp() {
+	// 30% chance to spawn a power-up each turn
+	if rand.Intn(100) >= 30 {
+		return
+	}
+
+	// Limit to 3 power-ups on board at once
+	if len(game.PowerUps) >= 3 {
+		return
+	}
+
+	// Find empty squares (not occupied by units or other power-ups)
+	var emptySquares [][2]int
+	for y := 0; y < BoardSize; y++ {
+		for x := 0; x < BoardSize; x++ {
+			if game.Board[y][x] != "" {
+				continue // Unit here
+			}
+			// Check if power-up already here
+			hasPowerUp := false
+			for _, p := range game.PowerUps {
+				if p.X == x && p.Y == y {
+					hasPowerUp = true
+					break
+				}
+			}
+			if !hasPowerUp {
+				emptySquares = append(emptySquares, [2]int{x, y})
+			}
+		}
+	}
+
+	if len(emptySquares) == 0 {
+		return
+	}
+
+	// Pick random empty square
+	pos := emptySquares[rand.Intn(len(emptySquares))]
+
+	// Pick random type (50/50)
+	powerUpType := "hp"
+	if rand.Intn(2) == 1 {
+		powerUpType = "attack"
+	}
+
+	game.PowerUps = append(game.PowerUps, PowerUp{
+		Type: powerUpType,
+		X:    pos[0],
+		Y:    pos[1],
+	})
+}
+
+// checkPowerUpCollection checks if a unit landed on a power-up and applies it
+func checkPowerUpCollection(unit *Unit, mark string) {
+	for i := len(game.PowerUps) - 1; i >= 0; i-- {
+		p := game.PowerUps[i]
+		if p.X == unit.X && p.Y == unit.Y {
+			// Collect it!
+			if p.Type == "hp" {
+				unit.HP += 3
+				if unit.HP > unit.MaxHP {
+					unit.HP = unit.MaxHP
+				}
+				broadcastToAll(ServerMessage{
+					Type:    "chat",
+					From:    "system",
+					Message: mark + " collected HP boost! (+3 HP)",
+				})
+			} else if p.Type == "attack" {
+				unit.AttackBoost = true
+				broadcastToAll(ServerMessage{
+					Type:    "chat",
+					From:    "system",
+					Message: mark + " collected Attack boost! (Next attack deals 6 damage)",
+				})
+			}
+			// Remove from board
+			game.PowerUps = append(game.PowerUps[:i], game.PowerUps[i+1:]...)
+		}
 	}
 }
