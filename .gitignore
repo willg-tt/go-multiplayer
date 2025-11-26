@@ -1,0 +1,7 @@
+# IDE
+.idea/
+*.swp
+.vscode/
+
+# Binary
+go-multiplayer
