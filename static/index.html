@@ -278,6 +278,72 @@
             font-weight: bold;
             color: #666;
         }
+
+        /* Mobile responsive styles */
+        @media (max-width: 500px) {
+            body {
+                padding: 10px;
+                align-items: flex-start;
+                padding-top: 20px;
+            }
+            h1 {
+                font-size: 24px;
+            }
+            .board {
+                grid-template-columns: repeat(9, 36px);
+                grid-template-rows: repeat(9, 36px);
+                gap: 1px;
+            }
+            .cell {
+                font-size: 18px;
+            }
+            .chat-container {
+                width: 100%;
+                max-width: 340px;
+            }
+            .name-input input {
+                width: 120px;
+                font-size: 12px;
+                padding: 6px 8px;
+            }
+            .name-input button {
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+            #status {
+                font-size: 1em;
+            }
+            /* Combat overlay mobile */
+            .combat-title {
+                font-size: 32px;
+                letter-spacing: 4px;
+                margin-bottom: 20px;
+            }
+            .combat-arena {
+                flex-direction: column;
+                gap: 20px;
+            }
+            .combatant {
+                min-width: 150px;
+            }
+            .combatant-label {
+                font-size: 20px;
+                margin-bottom: 10px;
+            }
+            .dice-container {
+                font-size: 72px;
+                height: 90px;
+            }
+            .combat-result {
+                font-size: 18px;
+            }
+            .damage-number {
+                font-size: 48px;
+            }
+            .vs-text {
+                font-size: 24px;
+            }
+        }
     </style>
 </head>
 <body>
