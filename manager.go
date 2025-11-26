@@ -132,11 +132,15 @@ func handleMoveAction(client *Client, x, y int) {
 		unit = game.UnitO
 	}
 
-	// Validate move is exactly 1 square away (8 directions)
-	dx := x - unit.X
-	dy := y - unit.Y
-	if abs(dx) > 1 || abs(dy) > 1 || (dx == 0 && dy == 0) {
-		sendJSON(client.Conn, ServerMessage{Type: "error", Error: "Can only move 1 square"})
+	// Validate move is within 3 squares (Chebyshev distance)
+	dx := abs(x - unit.X)
+	dy := abs(y - unit.Y)
+	distance := dx
+	if dy > dx {
+		distance = dy
+	}
+	if distance == 0 || distance > 3 {
+		sendJSON(client.Conn, ServerMessage{Type: "error", Error: "Can only move up to 3 squares"})
 		return
 	}
 
@@ -254,7 +258,9 @@ func handleAttackAction(client *Client, x, y int) {
 		return
 	}
 
-	// Combat resolution with dice rolls
+	// Combat resolution - Risk style!
+	// Both roll, higher wins, attacker wins ties
+	// Damage = difference between rolls (minimum 1)
 	attackRoll := rand.Intn(6) + 1 // 1-6
 	defendRoll := rand.Intn(6) + 1 // 1-6
 
@@ -266,21 +272,28 @@ func handleAttackAction(client *Client, x, y int) {
 		DefenderRoll: defendRoll,
 	}
 
-	// Attacker hits on 3+ (67% chance), damage = roll value
-	if attackRoll >= 3 {
-		combat.AttackerHit = true
-		combat.AttackerDamage = attackRoll
-		defender.HP -= attackRoll
+	// Attacker wins on tie (that's the advantage!)
+	if attackRoll >= defendRoll {
+		// Attacker wins - defender takes damage
+		combat.Winner = "attacker"
+		combat.LoserMark = defenderMark
+		combat.Damage = attackRoll - defendRoll
+		if combat.Damage < 1 {
+			combat.Damage = 1 // Minimum 1 damage on win
+		}
+		defender.HP -= combat.Damage
 		if defender.HP < 0 {
 			defender.HP = 0
 		}
-	}
-
-	// Defender counter-attacks on 5+ (33% chance), damage = roll value
-	if defendRoll >= 5 {
-		combat.DefenderHit = true
-		combat.DefenderDamage = defendRoll
-		attacker.HP -= defendRoll
+	} else {
+		// Defender wins - attacker takes damage
+		combat.Winner = "defender"
+		combat.LoserMark = attackerMark
+		combat.Damage = defendRoll - attackRoll
+		if combat.Damage < 1 {
+			combat.Damage = 1
+		}
+		attacker.HP -= combat.Damage
 		if attacker.HP < 0 {
 			attacker.HP = 0
 		}

@@ -15,14 +15,13 @@ type Unit struct {
 
 // CombatResult holds the details of a combat exchange for animation
 type CombatResult struct {
-	AttackerMark   string `json:"attackerMark"`   // "X" or "O"
-	DefenderMark   string `json:"defenderMark"`   // "X" or "O"
-	AttackerRoll   int    `json:"attackerRoll"`   // 1-6
-	DefenderRoll   int    `json:"defenderRoll"`   // 1-6
-	AttackerHit    bool   `json:"attackerHit"`    // Did attacker deal damage?
-	DefenderHit    bool   `json:"defenderHit"`    // Did defender counter?
-	AttackerDamage int    `json:"attackerDamage"` // Damage dealt by attacker
-	DefenderDamage int    `json:"defenderDamage"` // Damage dealt by defender
+	AttackerMark string `json:"attackerMark"` // "X" or "O"
+	DefenderMark string `json:"defenderMark"` // "X" or "O"
+	AttackerRoll int    `json:"attackerRoll"` // 1-6
+	DefenderRoll int    `json:"defenderRoll"` // 1-6
+	Winner       string `json:"winner"`       // "attacker" or "defender"
+	Damage       int    `json:"damage"`       // Damage dealt to loser
+	LoserMark    string `json:"loserMark"`    // Who took damage ("X" or "O")
 }
 
 // Game represents the Grid Wars game state

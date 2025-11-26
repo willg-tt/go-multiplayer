@@ -73,9 +73,9 @@ function showCombatAnimation(combat) {
     const defenderDamage = document.getElementById('defender-damage');
 
     // Set up labels
-    attackerLabel.textContent = combat.attackerMark;
+    attackerLabel.textContent = combat.attackerMark + ' (attacker)';
     attackerLabel.className = 'combatant-label ' + combat.attackerMark.toLowerCase();
-    defenderLabel.textContent = combat.defenderMark;
+    defenderLabel.textContent = combat.defenderMark + ' (defender)';
     defenderLabel.className = 'combatant-label ' + combat.defenderMark.toLowerCase();
 
     // Reset state
@@ -98,60 +98,58 @@ function showCombatAnimation(combat) {
     defenderDice.classList.add('rolling');
 
     // Randomly change dice faces during roll
-    let rollCount = 0;
     const rollInterval = setInterval(() => {
         attackerDice.textContent = getDiceFace(Math.floor(Math.random() * 6) + 1);
         defenderDice.textContent = getDiceFace(Math.floor(Math.random() * 6) + 1);
-        rollCount++;
     }, 100);
 
-    // After 1.5 seconds, stop rolling and show attacker result
+    // After 1.5 seconds, stop rolling and show results
     setTimeout(() => {
         clearInterval(rollInterval);
-        attackerDice.classList.remove('rolling');
-        attackerDice.textContent = getDiceFace(combat.attackerRoll);
 
-        // Show attacker result after a beat
+        // Stop both dice
+        attackerDice.classList.remove('rolling');
+        defenderDice.classList.remove('rolling');
+        attackerDice.textContent = getDiceFace(combat.attackerRoll);
+        defenderDice.textContent = getDiceFace(combat.defenderRoll);
+
+        // Show roll values
+        attackerResult.textContent = `Rolled ${combat.attackerRoll}`;
+        defenderResult.textContent = `Rolled ${combat.defenderRoll}`;
+
+        // After a beat, show winner and damage
         setTimeout(() => {
-            if (combat.attackerHit) {
-                attackerResult.textContent = `Rolled ${combat.attackerRoll} - HIT!`;
+            if (combat.winner === 'attacker') {
+                // Attacker won
+                attackerResult.textContent = `Rolled ${combat.attackerRoll} - WINS!`;
                 attackerResult.className = 'combat-result hit';
-                // Show damage on defender side
+                defenderResult.textContent = `Rolled ${combat.defenderRoll} - loses`;
+                defenderResult.className = 'combat-result miss';
+
+                // Show damage on defender
                 setTimeout(() => {
-                    defenderDamage.textContent = `-${combat.attackerDamage}`;
+                    defenderDamage.textContent = `-${combat.damage}`;
                     defenderDamage.className = 'damage-number show';
                 }, 300);
             } else {
-                attackerResult.textContent = `Rolled ${combat.attackerRoll} - Miss (need 3+)`;
+                // Defender won
+                defenderResult.textContent = `Rolled ${combat.defenderRoll} - WINS!`;
+                defenderResult.className = 'combat-result hit';
+                attackerResult.textContent = `Rolled ${combat.attackerRoll} - loses`;
                 attackerResult.className = 'combat-result miss';
+
+                // Show damage on attacker
+                setTimeout(() => {
+                    attackerDamage.textContent = `-${combat.damage}`;
+                    attackerDamage.className = 'damage-number show';
+                }, 300);
             }
 
-            // Stop defender dice and show result
+            // After showing results, hide overlay
             setTimeout(() => {
-                defenderDice.classList.remove('rolling');
-                defenderDice.textContent = getDiceFace(combat.defenderRoll);
-
-                setTimeout(() => {
-                    if (combat.defenderHit) {
-                        defenderResult.textContent = `Rolled ${combat.defenderRoll} - COUNTER!`;
-                        defenderResult.className = 'combat-result hit';
-                        // Show damage on attacker side
-                        setTimeout(() => {
-                            attackerDamage.textContent = `-${combat.defenderDamage}`;
-                            attackerDamage.className = 'damage-number show';
-                        }, 300);
-                    } else {
-                        defenderResult.textContent = `Rolled ${combat.defenderRoll} - No counter (need 5+)`;
-                        defenderResult.className = 'combat-result miss';
-                    }
-
-                    // After showing all results, hide overlay and update game state
-                    setTimeout(() => {
-                        hideCombatOverlay();
-                    }, 6000);
-                }, 300);
-            }, 800);
-        }, 300);
+                hideCombatOverlay();
+            }, 2500);
+        }, 800);
     }, 1500);
 }
 
@@ -213,11 +211,23 @@ function getEnemyUnit() {
     return null;
 }
 
-// Check if two positions are adjacent (within 1 square)
-function isAdjacent(x1, y1, x2, y2) {
+// Calculate Chebyshev distance (max of dx, dy - allows diagonal movement)
+function getDistance(x1, y1, x2, y2) {
     const dx = Math.abs(x1 - x2);
     const dy = Math.abs(y1 - y2);
-    return dx <= 1 && dy <= 1 && !(dx === 0 && dy === 0);
+    return Math.max(dx, dy);
+}
+
+// Check if within movement range (3 squares)
+function isWithinMoveRange(x1, y1, x2, y2) {
+    const dist = getDistance(x1, y1, x2, y2);
+    return dist > 0 && dist <= 3;
+}
+
+// Check if within attack range (1 square)
+function isWithinAttackRange(x1, y1, x2, y2) {
+    const dist = getDistance(x1, y1, x2, y2);
+    return dist === 1;
 }
 
 // Check if a move to (x, y) is valid for the current player
@@ -228,8 +238,8 @@ function isValidMove(x, y) {
     const unit = getMyUnit();
     if (!unit) return false;
 
-    // Must be adjacent
-    if (!isAdjacent(unit.x, unit.y, x, y)) return false;
+    // Must be within move range (3 squares)
+    if (!isWithinMoveRange(unit.x, unit.y, x, y)) return false;
 
     // Must be empty
     if (gameState.board[y][x] !== '') return false;
@@ -252,8 +262,8 @@ function isValidAttack(x, y) {
     // Target must be the enemy position
     if (enemyUnit.x !== x || enemyUnit.y !== y) return false;
 
-    // Enemy must be adjacent
-    if (!isAdjacent(myUnit.x, myUnit.y, x, y)) return false;
+    // Enemy must be within attack range (1 square)
+    if (!isWithinAttackRange(myUnit.x, myUnit.y, x, y)) return false;
 
     return true;
 }
