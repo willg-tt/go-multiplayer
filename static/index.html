@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tic-Tac-Toe</title>
     <style>
+        * {
+            box-sizing: border-box;
+        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, sans-serif;
             display: flex;
@@ -15,35 +18,73 @@
             background: #1a1a2e;
             color: white;
         }
-        h1 {
+        .container {
             text-align: center;
+        }
+        h1 {
+            margin-bottom: 10px;
+        }
+        #status {
+            font-size: 1.2em;
+            margin-bottom: 20px;
+            min-height: 1.5em;
+        }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            grid-template-rows: repeat(3, 100px);
+            gap: 5px;
+            margin: 0 auto 20px;
+        }
+        .cell {
+            background: #16213e;
+            border: 2px solid #0f3460;
+            font-size: 48px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+        .cell:hover {
+            background: #1f4068;
+        }
+        .cell.x {
+            color: #e94560;
+        }
+        .cell.o {
+            color: #00d9ff;
+        }
+        button {
+            background: #e94560;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            display: none;
+        }
+        button:hover {
+            background: #ff6b6b;
+        }
+        .player-info {
+            font-size: 0.9em;
+            color: #888;
+            margin-bottom: 10px;
         }
     </style>
 </head>
 <body>
-    <div>
+    <div class="container">
         <h1>Tic-Tac-Toe</h1>
-        <p id="status">Connecting...</p>
+        <div id="player-info" class="player-info"></div>
+        <div id="status">Connecting...</div>
+        <div class="board" id="board"></div>
+        <button id="reset-btn">Play Again</button>
     </div>
 
-    <script>
-        // Connect to WebSocket (auto-detect ws or wss based on page protocol)
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
-
-        ws.onopen = function() {
-            document.getElementById('status').textContent = 'Connected!';
-            console.log('WebSocket connected');
-        };
-
-        ws.onclose = function() {
-            document.getElementById('status').textContent = 'Disconnected';
-            console.log('WebSocket closed');
-        };
-
-        ws.onmessage = function(event) {
-            console.log('Received:', event.data);
-        };
-    </script>
+    <script src="game.js"></script>
 </body>
 </html>

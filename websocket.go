@@ -88,8 +88,14 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("Received from %s: %+v\n", player.Mark, msg)
 
 		// Handle different message types
-		if msg.Type == "move" {
+		switch msg.Type {
+		case "move":
 			handleMove(player, msg.X, msg.Y)
+		case "reset":
+			mutex.Lock()
+			game.reset()
+			mutex.Unlock()
+			broadcastState()
 		}
 	}
 }
@@ -131,7 +137,8 @@ func handleMove(player *Player, x, y int) {
 		game.Turn = "X"
 	}
 
-	// TODO: Check for winner (Step 7)
+	// Check for winner
+	game.checkWinner()
 
 	// Broadcast new state to both players
 	broadcastState()
