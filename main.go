@@ -6,6 +6,9 @@ import (
 )
 
 func main() {
+	// Start the chat broadcaster in its own goroutine
+	go startBroadcaster()
+
 	// Serve static files from the "static" directory
 	fs := http.FileServer(http.Dir("static"))
 	http.Handle("/", fs)

@@ -24,18 +24,29 @@ type Player struct {
 
 // ClientMessage is what the browser sends to us
 type ClientMessage struct {
-	Type string `json:"type"` // "move"
-	X    int    `json:"x"`    // 0, 1, or 2
-	Y    int    `json:"y"`    // 0, 1, or 2
+	Type    string `json:"type"`    // "move", "chat"
+	X       int    `json:"x"`       // 0, 1, or 2
+	Y       int    `json:"y"`       // 0, 1, or 2
+	Message string `json:"message"` // Chat message text
 }
 
 // ServerMessage is what we send to the browser
 type ServerMessage struct {
-	Type   string `json:"type"`           // "state", "error", "assigned"
-	Game   *Game  `json:"game,omitempty"` // Current game state
-	Mark   string `json:"mark,omitempty"` // "X" or "O" (when assigned)
-	Error  string `json:"error,omitempty"`
+	Type    string `json:"type"`              // "state", "error", "assigned", "chat"
+	Game    *Game  `json:"game,omitempty"`    // Current game state
+	Mark    string `json:"mark,omitempty"`    // "X" or "O" (when assigned)
+	Error   string `json:"error,omitempty"`
+	From    string `json:"from,omitempty"`    // Who sent the chat ("X" or "O")
+	Message string `json:"message,omitempty"` // Chat message text
 }
+
+// Broadcast is sent through the channel to all players
+type Broadcast struct {
+	Message ServerMessage
+}
+
+// Channel for broadcasting messages to all players
+var broadcast = make(chan Broadcast)
 
 // Global game state (we'll only have one game for simplicity)
 var (

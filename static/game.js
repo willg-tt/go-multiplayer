@@ -37,6 +37,34 @@ function handleMessage(msg) {
         case 'error':
             console.error('Error:', msg.error);
             break;
+
+        case 'chat':
+            addChatMessage(msg.from, msg.message);
+            break;
+    }
+}
+
+function addChatMessage(from, message) {
+    const chatMessages = document.getElementById('chat-messages');
+    const msgEl = document.createElement('div');
+    msgEl.className = 'chat-message';
+    msgEl.innerHTML = `<span class="from-${from.toLowerCase()}">${from}:</span> ${escapeHtml(message)}`;
+    chatMessages.appendChild(msgEl);
+    chatMessages.scrollTop = chatMessages.scrollHeight; // Auto-scroll to bottom
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function sendChat() {
+    const input = document.getElementById('chat-input');
+    const message = input.value.trim();
+    if (message) {
+        ws.send(JSON.stringify({ type: 'chat', message: message }));
+        input.value = '';
     }
 }
 
@@ -96,6 +124,10 @@ function resetGame() {
     ws.send(JSON.stringify({ type: 'reset' }));
 }
 
-// Set up reset button and start connection
+// Set up event listeners and start connection
 document.getElementById('reset-btn').onclick = resetGame;
+document.getElementById('chat-send').onclick = sendChat;
+document.getElementById('chat-input').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') sendChat();
+});
 connect();

@@ -20,6 +20,25 @@ func sendJSON(conn *websocket.Conn, msg ServerMessage) {
 	conn.WriteJSON(msg)
 }
 
+// startBroadcaster runs a goroutine that listens for chat messages and broadcasts them
+func startBroadcaster() {
+	for {
+		// Block until a message arrives on the channel
+		b := <-broadcast
+		fmt.Printf("Broadcasting: %+v\n", b.Message)
+
+		// Send to all connected players
+		mutex.Lock()
+		if game.PlayerX != nil {
+			sendJSON(game.PlayerX.Conn, b.Message)
+		}
+		if game.PlayerO != nil {
+			sendJSON(game.PlayerO.Conn, b.Message)
+		}
+		mutex.Unlock()
+	}
+}
+
 // handleWebSocket handles new WebSocket connections
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Upgrade HTTP connection to WebSocket
@@ -103,6 +122,15 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 			mutex.Unlock()
 			broadcastState()
+		case "chat":
+			// Send chat through the channel - broadcaster will handle it
+			broadcast <- Broadcast{
+				Message: ServerMessage{
+					Type:    "chat",
+					From:    player.Mark,
+					Message: msg.Message,
+				},
+			}
 		}
 	}
 }
